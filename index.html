@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="智能问答平台 · 知识库级别黑话配置 POC" />
+  <title>智能问答平台 · 黑话管理 POC</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23141414'/%3E%3Cpath d='M16 5 7 10v11l9 5 9-5V10l-9-5Zm0 11 9-5m-9 5-9-5m9 5v11' fill='none' stroke='white' stroke-width='1.5'/%3E%3C/svg%3E" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="sidebar-logo">
+        <div class="mark" aria-hidden="true">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.6">
+            <path d="M12 3 4 7.5v9L12 21l8-4.5v-9L12 3Z"/>
+            <path d="M12 12 4 7.5M12 12l8-4.5M12 12v9"/>
+          </svg>
+        </div>
+        <div class="logo-copy">
+          <div class="title">智能问答平台</div>
+          <div class="subtitle">管理后台</div>
+        </div>
+      </div>
+      <nav class="nav" aria-label="主导航">
+        <div class="nav-section">知识运营</div>
+        <button class="nav-item active" type="button" data-page="kb-list">
+          <span class="icon" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z"/></svg></span>
+          <span class="nav-text">知识库</span>
+        </button>
+        <button class="nav-item" type="button" data-page="agent">
+          <span class="icon" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="4" y="8" width="16" height="11" rx="2"/><path d="M12 8V5M9 5h6M9 13h.01M15 13h.01"/></svg></span>
+          <span class="nav-text">专业 Agent</span>
+        </button>
+        <div class="nav-section">黑话配置</div>
+        <button class="nav-item" type="button" data-page="blacktalk" id="nav-blacktalk">
+          <span class="icon" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v10Z"/><path d="M8 9h8M8 12.5h5"/></svg></span>
+          <span class="nav-text">黑话管理</span>
+        </button>
+      </nav>
+      <div class="sidebar-footer">
+        <button class="footer-link" type="button" id="btn-reset-demo">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2 6M20 4v7h-7"/></svg>
+          <span class="footer-copy">重置演示数据</span>
+        </button>
+        <div class="footer-user">
+          <div class="avatar" aria-hidden="true">知</div>
+          <div class="footer-copy">
+            <div class="footer-name">演示身份</div>
+            <div class="footer-mail">本地 Mock 数据</div>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <div class="main">
+      <header class="topbar">
+        <div class="breadcrumb" id="breadcrumb" aria-label="面包屑"></div>
+        <div class="topbar-right">
+          <div class="identity-box">
+            <label for="identity-select">身份</label>
+            <select class="identity-select" id="identity-select" aria-label="切换演示身份">
+              <option value="full">黑话管理 + 全局</option>
+              <option value="kb">仅本库可写</option>
+              <option value="view">仅查看</option>
+              <option value="none">无权限</option>
+            </select>
+          </div>
+          <div class="avatar" title="当前为纯前端演示身份" aria-hidden="true">知</div>
+        </div>
+      </header>
+
+      <main class="content">
+        <!-- 知识库列表 -->
+        <section class="page active" id="page-kb-list" aria-labelledby="kb-list-title">
+          <div class="page-heading">
+            <div>
+              <div class="eyebrow">知识运营</div>
+              <h1 id="kb-list-title">知识库</h1>
+              <p>管理知识库资源，并在「设置 → 黑话配置」中维护当前知识库的黑话词条。</p>
+            </div>
+            <div class="page-heading-meta" id="kb-list-meta">子范围优先于全局</div>
+          </div>
+          <div class="panel flex-panel">
+            <div class="toolbar">
+              <label class="search-box" aria-label="搜索知识库">
+                <input class="input" id="kb-list-search" placeholder="搜索知识库名称或标识" autocomplete="off" />
+                <span class="search-ico" aria-hidden="true"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></span>
+              </label>
+              <span class="result-count" id="kb-list-count"></span>
+            </div>
+            <div class="table-wrap">
+              <table class="data">
+                <thead>
+                  <tr>
+                    <th>名称</th>
+                    <th>资源标识</th>
+                    <th>说明</th>
+                    <th>本库词条</th>
+                    <th>公开性</th>
+                    <th>更新时间</th>
+                    <th>操作</th>
+                  </tr>
+                </thead>
+                <tbody id="kb-list-tbody"></tbody>
+              </table>
+              <div class="empty-state" id="kb-list-empty" hidden>
+                <div class="ico">⌕</div>
+                <div>未找到匹配的知识库</div>
+                <p>换个关键词试试。</p>
+              </div>
+            </div>
+            <div class="table-footer">
+              <span id="kb-list-footer-count"></span>
+            </div>
+          </div>
+        </section>
+
+        <!-- 知识库设置 -->
+        <section class="page" id="page-kb-settings" aria-labelledby="settings-title">
+          <div class="workspace-card">
+            <aside class="settings-aside">
+              <button class="back-link" type="button" id="btn-back-kb-list">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
+                返回知识库
+              </button>
+              <div class="settings-summary">
+                <div class="kb-icon" aria-hidden="true">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z"/></svg>
+                </div>
+                <h2 id="settings-kb-name">设备运维知识库</h2>
+                <p id="settings-kb-description"></p>
+                <div class="meta-line mono" id="settings-kb-code"></div>
+              </div>
+              <nav class="settings-nav" aria-label="知识库导航">
+                <button type="button">▤　文件</button>
+                <button type="button" class="active">⚙　设置</button>
+              </nav>
+            </aside>
+            <main class="settings-main">
+              <div class="settings-head">
+                <h1 id="settings-title">设置</h1>
+                <p>知识库资源设置与黑话配置。</p>
+                <div class="kb-tabs" role="tablist" aria-label="知识库设置页签">
+                  <button class="kb-tab" type="button" role="tab" data-kb-tab="basic" aria-selected="false">基本信息</button>
+                  <button class="kb-tab" type="button" role="tab" data-kb-tab="visibility" aria-selected="false">公开性设置</button>
+                  <button class="kb-tab" type="button" role="tab" data-kb-tab="files" aria-selected="false">文件更新</button>
+                  <button class="kb-tab" type="button" role="tab" data-kb-tab="blacktalk" aria-selected="false" id="kb-tab-blacktalk">黑话配置</button>
+                </div>
+              </div>
+
+              <div class="kb-tab-panel" id="kb-panel-basic">
+                <div class="settings-body">
+                  <div class="settings-section">
+                    <h3>基本信息</h3>
+                    <div class="info-grid">
+                      <dl class="info-item"><dt>知识库名称</dt><dd id="basic-kb-name"></dd></dl>
+                      <dl class="info-item"><dt>资源标识</dt><dd class="mono" id="basic-kb-code"></dd></dl>
+                      <dl class="info-item"><dt>说明</dt><dd id="basic-kb-description"></dd></dl>
+                      <dl class="info-item"><dt>最近更新</dt><dd id="basic-kb-updated"></dd></dl>
+                    </div>
+                  </div>
+                  <div class="settings-section">
+                    <h3>范围优先级</h3>
+                    <div class="normalize-preview">
+                      <h4>子范围优先于全局</h4>
+                      <div>同一问法命中多条词条时，按「指定知识库 → 指定应用 → 全局」选择生效词条。跨范围允许同名或同别名，用于覆盖全局口径。</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="kb-tab-panel" id="kb-panel-visibility">
+                <div class="settings-body">
+                  <div class="settings-section">
+                    <h3>公开性设置</h3>
+                    <div class="visibility-radios">
+                      <label class="vis-option">
+                        <input type="radio" name="kb-visibility" value="restricted" checked />
+                        <span><strong>受限访问</strong><small>仅获得授权的应用和用户可以使用该知识库。</small></span>
+                      </label>
+                      <label class="vis-option">
+                        <input type="radio" name="kb-visibility" value="public" />
+                        <span><strong>公开访问</strong><small>平台内所有应用均可检索该知识库。</small></span>
+                      </label>
+                    </div>
+                    <div class="mt-16"><button class="btn btn-primary" type="button" id="btn-save-visibility" data-kb-settings-write>保存公开性设置</button></div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="kb-tab-panel" id="kb-panel-files">
+                <div class="settings-body">
+                  <div class="settings-section">
+                    <h3>文件更新</h3>
+                    <div class="file-rule-row">
+                      <div><strong>更新方式</strong><small>文件内容变更后如何处理已建立的检索索引。</small></div>
+                      <div class="radio-group">
+                        <label class="radio-inline"><input type="radio" name="file-update" value="manual" checked />手动更新</label>
+                        <label class="radio-inline"><input type="radio" name="file-update" value="auto" />自动更新</label>
+                      </div>
+                    </div>
+                    <div class="file-rule-row">
+                      <div><strong>最近更新</strong><small>上次完成文件解析和索引更新的时间。</small></div>
+                      <div class="nowrap muted" id="files-last-updated">2026-11-18 10:32</div>
+                    </div>
+                    <div class="file-rule-row">
+                      <div><strong>索引状态</strong><small>当前演示数据为本地静态状态。</small></div>
+                      <div><span class="tag tag-green">已就绪</span></div>
+                    </div>
+                    <div class="mt-16"><button class="btn" type="button" id="btn-save-file-rule" data-kb-settings-write>保存文件更新设置</button></div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="kb-tab-panel" id="kb-panel-blacktalk">
+                <div class="locked-scope-note" id="kb-locked-note">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+                  <span>仅展示作用范围为「<strong id="kb-locked-name">设备运维知识库</strong>」的词条，新增与编辑时作用范围已锁定。</span>
+                </div>
+                <div class="kb-term-content">
+                  <div class="toolbar">
+                    <label class="search-box" aria-label="搜索本库黑话">
+                      <input class="input" id="kb-black-search" placeholder="搜索规范名、规范编码、别名或释义" autocomplete="off" />
+                      <span class="search-ico" aria-hidden="true"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></span>
+                    </label>
+                    <select class="input filter-select" id="kb-black-status" aria-label="按状态筛选">
+                      <option value="all">全部状态</option>
+                      <option value="enabled">启用</option>
+                      <option value="disabled">停用</option>
+                    </select>
+                    <span class="result-count" id="kb-black-count"></span>
+                    <div class="toolbar-right">
+                      <button class="btn" type="button" id="btn-kb-black-audit">变更记录</button>
+                      <button class="btn" type="button" id="btn-kb-black-export">导出</button>
+                      <button class="btn" type="button" id="btn-kb-black-import" data-kb-write>导入</button>
+                      <button class="btn btn-primary" type="button" id="btn-kb-black-add" data-kb-write>新增词条</button>
+                    </div>
+                  </div>
+                  <div class="table-wrap">
+                    <table class="data">
+                      <thead>
+                        <tr>
+                          <th>规范名 / 规范编码</th>
+                          <th>别名</th>
+                          <th>释义摘要</th>
+                          <th>状态</th>
+                          <th>更新时间</th>
+                          <th>操作</th>
+                        </tr>
+                      </thead>
+                      <tbody id="kb-black-tbody"></tbody>
+                    </table>
+                    <div class="empty-state" id="kb-black-empty" hidden>
+                      <div class="ico">⌕</div>
+                      <div>暂无匹配词条</div>
+                      <p>可在当前知识库新增词条，作用范围会自动锁定为本库。</p>
+                    </div>
+                  </div>
+                  <div class="table-footer">
+                    <span id="kb-black-footer-count"></span>
+                    <div class="pager" id="kb-black-pager" aria-label="本库词条分页"></div>
+                  </div>
+                </div>
+              </div>
+            </main>
+          </div>
+        </section>
+
+        <!-- 专业 Agent -->
+        <section class="page" id="page-agent" aria-labelledby="agent-page-title">
+          <div class="page-heading">
+            <div>
+              <div class="eyebrow">Agent 中心</div>
+              <h1 id="agent-page-title">专业 Agent</h1>
+              <p>在 Agent 配置中设置该应用的对话效果。黑话增强默认开启，关闭后不调用黑话解析。</p>
+            </div>
+            <div class="page-heading-meta">配置即时生效</div>
+          </div>
+          <div class="agent-layout">
+            <aside class="panel agent-list-panel">
+              <div class="agent-list-head">
+                <h2>Agent 配置</h2>
+                <p>选择要配置的专业 Agent</p>
+              </div>
+              <div class="agent-list" id="agent-list" role="list"></div>
+            </aside>
+            <section class="panel agent-config-panel">
+              <div class="agent-config-head">
+                <div class="agent-config-title">
+                  <div>
+                    <h1 id="agent-title">设备运维助手</h1>
+                    <p id="agent-description">面向设备巡检、缺陷处置与检修场景的专业 Agent。</p>
+                  </div>
+                  <span class="tag tag-green">已启用</span>
+                </div>
+                <div class="agent-tabs" role="tablist" aria-label="Agent 设置页签">
+                  <button class="agent-tab" type="button" role="tab" data-agent-tab="basic" aria-selected="false">基本信息</button>
+                  <button class="agent-tab" type="button" role="tab" data-agent-tab="effect" aria-selected="false">效果设置</button>
+                  <button class="agent-tab" type="button" role="tab" data-agent-tab="kb" aria-selected="false">知识库</button>
+                </div>
+              </div>
+              <div class="agent-tab-panel" id="agent-panel-basic">
+                <div class="settings-group">
+                  <h3>基本信息</h3>
+                  <div class="info-grid">
+                    <dl class="info-item"><dt>Agent 名称</dt><dd id="agent-basic-name"></dd></dl>
+                    <dl class="info-item"><dt>应用说明</dt><dd id="agent-basic-description"></dd></dl>
+                    <dl class="info-item"><dt>状态</dt><dd><span class="tag tag-green">已启用</span></dd></dl>
+                    <dl class="info-item"><dt>对话效果</dt><dd>追问推荐、上传文件、黑话增强</dd></dl>
+                  </div>
+                </div>
+              </div>
+              <div class="agent-tab-panel" id="agent-panel-effect">
+                <div class="settings-group">
+                  <h3>效果设置</h3>
+                  <div class="switch-list">
+                    <div class="switch-row">
+                      <div class="switch-copy">
+                        <strong>追问推荐</strong>
+                        <small>当问题信息不足时，推荐下一步可追问的内容。</small>
+                      </div>
+                      <button class="switch on" type="button" role="switch" aria-checked="true" aria-label="追问推荐" id="switch-followup"></button>
+                    </div>
+                    <div class="switch-row">
+                      <div class="switch-copy">
+                        <strong>上传文件</strong>
+                        <small>允许用户上传文件，并结合文件内容进行回答。</small>
+                      </div>
+                      <button class="switch on" type="button" role="switch" aria-checked="true" aria-label="上传文件" id="switch-upload"></button>
+                    </div>
+                    <div class="switch-row" id="row-black-enhance">
+                      <div class="switch-copy">
+                        <strong>黑话增强</strong>
+                        <small>开启后，该应用会按作用范围调用黑话解析，将别名规范化为规范名和规范编码。默认开启。</small>
+                      </div>
+                      <button class="switch on" type="button" role="switch" aria-checked="true" aria-label="黑话增强" id="switch-black"></button>
+                    </div>
+                  </div>
+                  <div class="help-inline mt-8" id="agent-write-note" hidden>当前身份仅可查看，效果设置不可修改。</div>
+                </div>
+                <div class="settings-group" id="agent-demo-group">
+                  <h3>黑话解析演示</h3>
+                  <div class="agent-demo">
+                    <div class="agent-demo-head">
+                      <div>
+                        <h4>输入一句现场问法</h4>
+                        <p>仅演示命中词条与生效范围，不生成完整回答；子范围优先于全局。</p>
+                      </div>
+                      <span class="tag tag-blue" id="agent-context-tag">关联：设备运维知识库</span>
+                    </div>
+                    <div class="demo-form">
+                      <input class="input" id="demo-query" value="CT 二次回路异常，先核对计量流变和刀闸位置" aria-label="黑话解析演示输入" />
+                      <button class="btn btn-primary" type="button" id="btn-demo-run">试解析</button>
+                    </div>
+                    <div class="demo-result" id="demo-result" aria-live="polite"></div>
+                  </div>
+                </div>
+              </div>
+              <div class="agent-tab-panel" id="agent-panel-kb">
+                <div class="settings-group">
+                  <h3>关联知识库</h3>
+                  <div class="info-grid">
+                    <dl class="info-item"><dt>知识库</dt><dd id="agent-kb-name"></dd></dl>
+                    <dl class="info-item"><dt>资源标识</dt><dd class="mono" id="agent-kb-code"></dd></dl>
+                    <dl class="info-item"><dt>说明</dt><dd id="agent-kb-description"></dd></dl>
+                    <dl class="info-item"><dt>黑话解析</dt><dd id="agent-kb-black-state">已开启</dd></dl>
+                  </div>
+                </div>
+              </div>
+            </section>
+          </div>
+        </section>
+
+        <!-- 全局黑话管理 -->
+        <section class="page" id="page-blacktalk" aria-labelledby="blacktalk-title">
+          <div class="page-heading">
+            <div>
+              <div class="eyebrow">知识运营</div>
+              <h1 id="blacktalk-title">黑话管理</h1>
+              <p>统一维护全局、应用与知识库范围的黑话词条；保存后立即生效，无审核环节。</p>
+            </div>
+            <div class="page-heading-meta" id="blacktalk-meta"></div>
+          </div>
+          <div class="panel flex-panel">
+            <div class="toolbar">
+              <label class="search-box" aria-label="搜索黑话">
+                <input class="input" id="black-search" placeholder="搜索规范名、规范编码、别名或释义" autocomplete="off" />
+                <span class="search-ico" aria-hidden="true"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></span>
+              </label>
+              <select class="input filter-select" id="black-scope" aria-label="按作用范围筛选">
+                <option value="all">全部作用范围</option>
+                <option value="global">全局</option>
+                <option value="app">指定应用</option>
+                <option value="kb">指定知识库</option>
+              </select>
+              <select class="input filter-select" id="black-status" aria-label="按状态筛选">
+                <option value="all">全部状态</option>
+                <option value="enabled">启用</option>
+                <option value="disabled">停用</option>
+              </select>
+              <span class="result-count" id="black-result-count"></span>
+              <div class="toolbar-right">
+                <button class="btn" type="button" id="btn-black-audit">变更记录</button>
+                <button class="btn" type="button" id="btn-black-export">导出</button>
+                <button class="btn" type="button" id="btn-black-import" data-global-write>导入</button>
+                <button class="btn btn-primary" type="button" id="btn-black-add" data-global-write>新增</button>
+              </div>
+            </div>
+            <div class="table-wrap">
+              <table class="data">
+                <thead>
+                  <tr>
+                    <th>规范名 / 规范编码</th>
+                    <th>别名</th>
+                    <th>释义摘要</th>
+                    <th>作用范围</th>
+                    <th>状态</th>
+                    <th>更新时间</th>
+                    <th>操作</th>
+                  </tr>
+                </thead>
+                <tbody id="black-tbody"></tbody>
+              </table>
+              <div class="empty-state" id="black-empty" hidden>
+                <div class="ico">⌕</div>
+                <div>暂无匹配词条</div>
+                <p>调整搜索或筛选条件，或新增一个词条。</p>
+              </div>
+            </div>
+            <div class="table-footer">
+              <div class="footer-left">
+                <span id="black-footer-count"></span>
+                <span class="toolbar-note" id="black-scope-note"></span>
+              </div>
+              <div class="pager" id="black-pager" aria-label="黑话词条分页"></div>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <!-- 词条抽屉 -->
+  <div class="modal-mask drawer-mask" id="modal-term">
+    <div class="drawer" role="dialog" aria-modal="true" aria-labelledby="term-title">
+      <div class="modal-header">
+        <div>
+          <h3 id="term-title">新增词条</h3>
+          <div class="modal-subtitle" id="term-subtitle">保存后立即生效，无审核环节</div>
+        </div>
+        <button class="btn-icon" type="button" data-close="modal-term" aria-label="关闭">✕</button>
+      </div>
+      <div class="modal-body">
+        <form id="term-form" autocomplete="off">
+          <input type="hidden" id="term-id" />
+          <div class="form-row">
+            <label for="term-name">规范名<span class="req">*</span></label>
+            <input class="input" id="term-name" maxlength="60" placeholder="例如：隔离开关" />
+            <div class="field-error" id="err-term-name"></div>
+          </div>
+          <div class="form-row">
+            <label for="term-code">规范编码<span class="req">*</span></label>
+            <input class="input mono" id="term-code" maxlength="60" placeholder="例如：EQ-DS-003" />
+            <div class="field-error" id="err-term-code"></div>
+          </div>
+          <div class="form-row">
+            <label for="alias-input">别名<span class="hint">选填，可多个；输入后按 Enter 添加</span></label>
+            <div class="alias-editor" id="alias-editor">
+              <div id="alias-chips" style="display:contents"></div>
+              <input id="alias-input" placeholder="例如：刀闸" autocomplete="off" aria-label="添加别名" />
+            </div>
+            <div class="field-error" id="err-term-aliases"></div>
+          </div>
+          <div class="form-row">
+            <label for="term-definition">释义<span class="req">*</span></label>
+            <textarea class="textarea" id="term-definition" maxlength="500" placeholder="说明该黑话在业务中的准确含义"></textarea>
+            <div class="field-error" id="err-term-definition"></div>
+          </div>
+          <div class="form-row" id="scope-form-row">
+            <label>作用范围<span class="req">*</span></label>
+            <div class="form-grid" id="scope-editor">
+              <select class="input" id="term-scope-type" aria-label="作用范围类型">
+                <option value="global">全局</option>
+                <option value="app">指定应用</option>
+                <option value="kb">指定知识库</option>
+              </select>
+              <select class="input" id="term-scope-target" aria-label="作用范围对象" hidden></select>
+            </div>
+            <div class="scope-locked-box" id="scope-locked-box" hidden>
+              <span>指定知识库：<strong id="scope-locked-name">设备运维知识库</strong></span>
+              <span class="tag tag-orange">范围已锁定</span>
+            </div>
+            <div class="field-error" id="err-term-scope"></div>
+          </div>
+          <div class="form-row">
+            <label>状态<span class="req">*</span></label>
+            <div class="radio-group" id="term-status">
+              <label><input type="radio" name="term-status" value="enabled" checked />启用</label>
+              <label><input type="radio" name="term-status" value="disabled" />停用</label>
+            </div>
+            <div class="field-error" id="err-term-status"></div>
+          </div>
+          <div class="conflict-box" id="term-conflicts" hidden>
+            <h4>保存前需处理以下冲突</h4>
+            <div id="term-conflict-list"></div>
+          </div>
+          <div class="normalize-preview" id="normalize-preview">
+            <h4>规范化预览</h4>
+            <div class="normalize-line"><span>别名归并</span><div id="preview-aliases">添加别名后显示</div></div>
+            <div class="normalize-line"><span>规范结果</span><strong id="preview-result">填写规范名和规范编码后显示</strong></div>
+            <div class="normalize-line"><span>作用范围</span><span id="preview-scope">全局</span></div>
+            <div class="normalize-line"><span>生效说明</span><span id="preview-effect">保存后立即生效</span></div>
+          </div>
+          <p class="form-hint mt-12">别名与规范名在同一作用范围内参与冲突校验；不同范围允许重名，并按子范围优先生效。</p>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" type="button" data-close="modal-term">取消</button>
+        <button class="btn btn-primary" type="button" id="btn-term-save">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 导入 -->
+  <div class="modal-mask" id="modal-import">
+    <div class="modal wide" role="dialog" aria-modal="true" aria-labelledby="import-title">
+      <div class="modal-header">
+        <div>
+          <h3 id="import-title">导入词条</h3>
+          <div class="modal-subtitle">先预览校验，全部通过后再确认写入</div>
+        </div>
+        <button class="btn-icon" type="button" data-close="modal-import" aria-label="关闭">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="import-note">
+          <div><strong>Excel/CSV 模板字段：</strong>规范名、规范编码、别名、释义、作用范围、范围名称、状态。</div>
+          <div class="mt-8">别名以 <code>|</code> 分隔；作用范围填写 <code>全局</code>、<code>指定应用</code> 或 <code>指定知识库</code>；状态填写 <code>启用</code> 或 <code>停用</code>。CSV 使用 UTF-8 编码，可直接用 Excel 打开和编辑。</div>
+          <div class="mt-8" id="import-scope-note"></div>
+        </div>
+        <div class="import-toolbar">
+          <button class="btn btn-sm" type="button" id="btn-download-template">下载 CSV 模板</button>
+          <input class="file-input" id="import-file" type="file" accept=".csv,text/csv" />
+          <label class="btn btn-sm" for="import-file">选择 CSV 文件</label>
+          <button class="btn btn-sm" type="button" id="btn-fill-import-sample">填入示例</button>
+          <button class="btn btn-sm btn-primary" type="button" id="btn-preview-import">解析并预览</button>
+        </div>
+        <div class="form-row">
+          <label for="import-text">或粘贴 CSV 内容</label>
+          <textarea class="textarea import-textarea" id="import-text" placeholder="规范名,规范编码,别名,释义,作用范围,范围名称,状态&#10;刀闸,EQ-DS-003,隔离刀闸|刀开关,用于隔离电源的开关设备,指定应用,设备运维助手,启用"></textarea>
+          <div class="field-error show" id="import-error" hidden></div>
+        </div>
+        <div class="import-preview" id="import-preview" hidden>
+          <div class="import-preview-head">
+            <span id="import-summary"></span>
+            <span id="import-preview-status"></span>
+          </div>
+          <div class="import-scroll">
+            <table>
+              <thead><tr><th>行</th><th>规范名 / 编码</th><th>作用范围</th><th>状态</th><th>校验</th></tr></thead>
+              <tbody id="import-preview-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" type="button" data-close="modal-import">取消</button>
+        <button class="btn btn-primary" type="button" id="btn-import-confirm" disabled>确认导入</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 变更记录 -->
+  <div class="modal-mask" id="modal-audit">
+    <div class="modal xwide" role="dialog" aria-modal="true" aria-labelledby="audit-title">
+      <div class="modal-header">
+        <div>
+          <h3 id="audit-title">变更记录</h3>
+          <div class="modal-subtitle">保存、停用、删除与导入均会留痕；仅最近一次变更可回滚。</div>
+        </div>
+        <button class="btn-icon" type="button" data-close="modal-audit" aria-label="关闭">✕</button>
+      </div>
+      <div class="modal-body" id="audit-content"></div>
+      <div class="modal-footer">
+        <button class="btn" type="button" data-close="modal-audit">关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 确认 -->
+  <div class="modal-mask" id="modal-confirm">
+    <div class="modal narrow" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
+      <div class="modal-header">
+        <h3 id="confirm-title">确认</h3>
+        <button class="btn-icon" type="button" data-close="modal-confirm" aria-label="关闭">✕</button>
+      </div>
+      <div class="modal-body">
+        <p class="confirm-text" id="confirm-text"></p>
+        <div id="confirm-extra"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" type="button" data-close="modal-confirm">取消</button>
+        <button class="btn btn-danger-solid" type="button" id="btn-confirm-ok">确定</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast-wrap" id="toast-wrap" role="status" aria-live="polite"></div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
