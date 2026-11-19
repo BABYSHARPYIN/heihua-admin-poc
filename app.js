@@ -15,8 +15,8 @@ import {
   statusLabel,
   templateCsv,
   validateEntry,
-} from "./domain.mjs?v=20261119-terms";
-import { INITIAL_ENTRIES } from "./data.mjs?v=20261119-terms";
+} from "./domain.mjs?v=20261119-delivery";
+import { INITIAL_ENTRIES } from "./data.mjs?v=20261119-delivery";
 
 const STORAGE_KEY = "heihua-admin-poc-state-v2";
 const LEGACY_STORAGE_KEY = "heihua-admin-poc-state-v1";
@@ -446,7 +446,6 @@ function renderBlackTable() {
   document.getElementById("black-empty").hidden = paged.items.length > 0;
   document.getElementById("black-result-count").innerHTML = `共 <strong>${paged.total}</strong> 条`;
   document.getElementById("black-footer-count").textContent = `第 ${paged.page} / ${paged.pages} 页 · 每页 ${GLOBAL_PAGE_SIZE} 条`;
-  document.getElementById("black-scope-note").textContent = "指定 Agent 优先于全局";
   const counts = { global: 0, app: 0 };
   for (const entry of state.entries) counts[entry.scope?.type || "global"] += 1;
   document.getElementById("terms-meta").textContent = `全局 ${counts.global} · 指定 Agent ${counts.app}`;
@@ -506,7 +505,7 @@ function setTermStatus(termId, nextStatus) {
   saveState();
   renderCurrentPage();
   if (document.getElementById("modal-audit").classList.contains("show")) renderAudit();
-  toast(nextStatus === "enabled" ? `已启用「${after.name}」，立即生效` : `已停用「${after.name}」，新请求不再命中`);
+  toast(nextStatus === "enabled" ? `已启用「${after.name}」` : `已停用「${after.name}」`);
 }
 
 function handleTermAction(action, termId) {
@@ -528,7 +527,7 @@ function handleTermAction(action, termId) {
       openConfirm({
         title: "停用词条",
         textHtml: `确认停用 <strong>「${escapeHtml(entry.name)}」</strong>？`,
-        extraHtml: '<div class="confirm-note">停用后，新请求将不再命中该词条；历史变更记录会保留。</div>',
+        extraHtml: '<div class="confirm-note">停用后将不再召回该词条。</div>',
         confirmText: "停用",
         tone: "danger",
         onConfirm: () => setTermStatus(entry.id, "disabled"),
@@ -538,7 +537,7 @@ function handleTermAction(action, termId) {
     openConfirm({
       title: "删除词条",
       textHtml: `确认删除 <strong>「${escapeHtml(entry.name)}」</strong>？`,
-      extraHtml: '<div class="confirm-warning">删除后立即失效。该操作会记录在变更记录中，若为最近一次变更可尝试回滚。</div>',
+      extraHtml: '<div class="confirm-warning">删除后将不再召回该词条。</div>',
       confirmText: "删除",
       tone: "danger",
       onConfirm: () => {
@@ -658,8 +657,6 @@ function refreshTermPreview() {
         ? scopeLabel(candidate.scope)
         : "请选择范围对象";
   document.getElementById("preview-scope").textContent = scopeText;
-  document.getElementById("preview-effect").textContent =
-    candidate.status === "disabled" ? "状态为停用，不会命中" : "保存后立即生效，无审核";
 }
 
 function canOpenConflictEntry(termId) {
@@ -706,13 +703,7 @@ function refreshTermValidation({ showErrors = false } = {}) {
   renderTermConflicts(validation);
   const save = document.getElementById("btn-term-save");
   save.disabled = state.term.readOnly || validation.conflicts.length > 0;
-  if (validation.conflicts.length) {
-    document.getElementById("preview-effect").textContent = "存在冲突，处理后才能保存";
-  }
   refreshTermPreview();
-  if (validation.conflicts.length) {
-    document.getElementById("preview-effect").textContent = "存在冲突，处理后才能保存";
-  }
   return validation;
 }
 
@@ -732,9 +723,6 @@ function openTermEditor({ id = null, readOnly = false, source = "global" } = {})
   };
 
   document.getElementById("term-title").textContent = readOnly ? "查看词条" : entry ? "编辑词条" : "新增词条";
-  document.getElementById("term-subtitle").textContent = readOnly
-    ? "当前为只读查看；如需修改，请切换到有写权限的身份。"
-    : "保存后立即生效，无审核环节";
   document.getElementById("term-id").value = entry?.id || "";
   document.getElementById("term-name").value = entry?.name || "";
   renderAttributes(entry?.attributes || [], readOnly);
@@ -803,7 +791,7 @@ function commitTerm() {
       before,
       after,
     });
-    toast(`已保存「${after.name}」，立即生效`);
+    toast(`已保存「${after.name}」`);
   } else {
     const after = {
       ...normalized,
@@ -820,7 +808,7 @@ function commitTerm() {
       before: null,
       after,
     });
-    toast(`已新增「${after.name}」，立即生效`);
+    toast(`已新增「${after.name}」`);
   }
   saveState();
   closeModal("modal-term");
@@ -865,7 +853,7 @@ function renderAgent() {
   }
   const writeNote = document.getElementById("agent-write-note");
   writeNote.hidden = canWrite;
-  writeNote.textContent = "当前身份无 Agent 配置写权限，开关仅展示当前配置。";
+  writeNote.textContent = "无修改权限";
 
   document.querySelectorAll("[data-agent-tab]").forEach((button) => {
     const active = button.dataset.agentTab === state.agentTab;
@@ -932,8 +920,6 @@ function openImport() {
   }
   document.getElementById("import-text").value = "";
   document.getElementById("import-file").value = "";
-  const scopeNote = document.getElementById("import-scope-note");
-  scopeNote.textContent = "作用范围仅支持全局或指定 Agent；属性以属性名和值成对存储。";
   resetImportPreview();
   openModal("modal-import");
 }
@@ -988,7 +974,7 @@ function previewImport() {
   const confirm = document.getElementById("btn-import-confirm");
   confirm.disabled = !parsed.allValid;
   if (!parsed.allValid) {
-    errorBox.textContent = "请先修正预览中的错误；本演示采用全部通过后再写入的方式。";
+    errorBox.textContent = "请修正导入错误";
     errorBox.hidden = false;
   }
 }
@@ -1023,7 +1009,7 @@ function confirmImport() {
   saveState();
   closeModal("modal-import");
   renderCurrentPage();
-  toast(`已导入 ${added.length} 条词条，立即生效`);
+  toast(`已导入 ${added.length} 条词条`);
 }
 
 /* ——— 变更记录 ——— */
@@ -1062,8 +1048,7 @@ function renderAudit() {
             <td class="nowrap">${canRollback(log) ? `<button class="btn-link" type="button" data-rollback-log="${escapeHtml(log.id)}">回滚</button>` : log.id === state.audit[0]?.id ? '<span class="muted">最近一次</span>' : '<span class="muted">—</span>'}</td>
           </tr>`).join("")}</tbody>
       </table>
-    </div>
-    <p class="form-hint mt-12">仅最近一次变更可回滚；回滚会恢复该词条的上一版本，并新增一条回滚记录。</p>`;
+    </div>`;
 }
 
 function openAudit() {
@@ -1082,7 +1067,7 @@ function rollbackAudit(logId) {
   openConfirm({
     title: "回滚最近一次变更",
     textHtml: `确认${actionText}？`,
-    extraHtml: '<div class="confirm-note">回滚后立即生效，并保留原有变更与本次回滚记录。</div>',
+    extraHtml: "",
     confirmText: "确认回滚",
     tone: "primary",
     onConfirm: () => {
@@ -1183,8 +1168,8 @@ function bindEvents() {
   document.querySelectorAll('input[name="kb-visibility"]').forEach(input => input.addEventListener("change", () => {
     document.getElementById("btn-save-visibility").click();
   }));
-  document.querySelectorAll("[data-demo-message]").forEach(button => button.addEventListener("click", () => toast(`${button.dataset.demoMessage}仅展示现网入口，本演示聚焦词条配置`, "info")));
-  document.getElementById("btn-create-kb").addEventListener("click", () => toast("创建入口沿用现网，本演示可配置现有知识库", "info"));
+  document.querySelectorAll("[data-demo-message]").forEach(button => button.addEventListener("click", () => toast(`${button.dataset.demoMessage}暂不可用`, "info")));
+  document.getElementById("btn-create-kb").addEventListener("click", () => toast("创建知识库暂不可用", "info"));
   for (const context of ["kb", "agent"]) {
     document.getElementById(`btn-${context}-add-member`).addEventListener("click", () => {
       state.memberContext = context;
@@ -1199,7 +1184,7 @@ function bindEvents() {
     if (!allowed) { toast("当前身份无修改权限", "error"); return; }
     if (!account || !role) { document.getElementById("member-error").classList.add("show"); return; }
     closeModal("modal-member");
-    toast("已添加演示成员，权限演示可在用户菜单中切换");
+    toast("成员添加暂不可用");
   });
   document.getElementById("kb-list-tbody").addEventListener("click", (event) => {
     const button = event.target.closest("[data-open-kb]");
