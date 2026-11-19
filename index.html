@@ -6,8 +6,8 @@
   <meta name="description" content="智能问答平台 · 词条管理 POC" />
   <title>智能问答平台 · 词条管理 POC</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23141414'/%3E%3Cpath d='M16 5 7 10v11l9 5 9-5V10l-9-5Zm0 11 9-5m-9 5-9-5m9 5v11' fill='none' stroke='white' stroke-width='1.5'/%3E%3C/svg%3E" />
-  <link rel="stylesheet" href="style.css?v=20261119-delivery" />
-  <link rel="stylesheet" href="live.css?v=20261119-delivery" />
+  <link rel="stylesheet" href="style.css?v=20261119-simple" />
+  <link rel="stylesheet" href="live.css?v=20261119-simple" />
 </head>
 <body>
   <div class="app">
@@ -271,7 +271,7 @@
           <div class="panel flex-panel">
             <div class="toolbar">
               <label class="search-box" aria-label="搜索词条">
-                <input class="input" id="black-search" placeholder="搜索名称、别名、释义或属性" autocomplete="off" />
+                <input class="input" id="black-search" placeholder="搜索名称、别名或释义" autocomplete="off" />
                 <span class="search-ico" aria-hidden="true"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></span>
               </label>
               <select class="input filter-select" id="black-scope" aria-label="按作用范围筛选">
@@ -301,7 +301,6 @@
                     <th>词条名称</th>
                     <th>别名</th>
                     <th>释义</th>
-                    <th>可扩展属性</th>
                     <th>应用范围</th>
                     <th>状态</th>
                     <th>更新时间</th>
@@ -358,11 +357,6 @@
             <textarea class="textarea" id="term-definition" maxlength="500" placeholder="说明该词条的含义"></textarea>
             <div class="field-error" id="err-term-definition"></div>
           </div>
-          <div class="form-row">
-            <div class="label-toolbar"><label>可扩展属性<span class="hint">选填，可多条</span></label><button class="btn-link" type="button" id="btn-add-attribute">＋ 添加属性</button></div>
-            <div id="term-attributes"></div>
-            <div class="field-error" id="err-term-attributes"></div>
-          </div>
           <div class="form-row" id="scope-form-row">
             <label>作用范围<span class="req">*</span></label>
             <div class="form-grid" id="scope-editor">
@@ -386,12 +380,6 @@
             <h4>保存前需处理以下冲突</h4>
             <div id="term-conflict-list"></div>
           </div>
-          <div class="normalize-preview" id="normalize-preview">
-            <h4>词条预览</h4>
-            <div class="normalize-line"><span>别名归并</span><div id="preview-aliases">添加别名后显示</div></div>
-            <div class="normalize-line"><span>词条名称</span><strong id="preview-result">填写词条名称后显示</strong></div>
-            <div class="normalize-line"><span>作用范围</span><span id="preview-scope">全局</span></div>
-          </div>
         </form>
       </div>
       <div class="modal-footer">
@@ -412,8 +400,8 @@
       </div>
       <div class="modal-body">
         <div class="import-note">
-          <div><strong>Excel/CSV 模板字段：</strong>词条名称、别名、释义、可扩展属性、作用范围、Agent名称、状态。</div>
-          <div class="mt-8">别名以 <code>|</code> 分隔；作用范围填写 <code>全局</code> 或 <code>指定 Agent</code>；状态填写 <code>启用</code> 或 <code>停用</code>。可扩展属性填写 JSON 数组，例如 [{&quot;name&quot;:&quot;型号&quot;,&quot;value&quot;:&quot;DS-1&quot;}]。CSV 使用 UTF-8 编码，可直接用 Excel 打开和编辑。</div>
+          <div><strong>CSV 模板字段：</strong>词条名称、别名、释义、作用范围、Agent名称、状态。</div>
+          <div class="mt-8">多个别名以 <code>|</code> 分隔；指定 Agent 时填写 Agent 名称。CSV 使用 UTF-8 编码。</div>
         </div>
         <div class="import-toolbar">
           <button class="btn btn-sm" type="button" id="btn-download-template">下载 CSV 模板</button>
@@ -424,7 +412,7 @@
         </div>
         <div class="form-row">
           <label for="import-text">或粘贴 CSV 内容</label>
-          <textarea class="textarea import-textarea" id="import-text" placeholder="词条名称,别名,释义,可扩展属性,作用范围,Agent名称,状态"></textarea>
+          <textarea class="textarea import-textarea" id="import-text" placeholder="词条名称,别名,释义,作用范围,Agent名称,状态"></textarea>
           <div class="field-error show" id="import-error" hidden></div>
         </div>
         <div class="import-preview" id="import-preview" hidden>
@@ -434,7 +422,7 @@
           </div>
           <div class="import-scroll">
             <table>
-              <thead><tr><th>行</th><th>词条名称 / 属性</th><th>作用范围</th><th>状态</th><th>校验</th></tr></thead>
+              <thead><tr><th>行</th><th>词条名称</th><th>作用范围</th><th>状态</th><th>校验</th></tr></thead>
               <tbody id="import-preview-body"></tbody>
             </table>
           </div>
@@ -502,6 +490,6 @@
 
   <div class="toast-wrap" id="toast-wrap" role="status" aria-live="polite"></div>
 
-  <script type="module" src="app.js?v=20261119-delivery"></script>
+  <script type="module" src="app.js?v=20261119-simple"></script>
 </body>
 </html>
