@@ -24,7 +24,7 @@ test("默认次数降序，同次数更新时间降序", () => {
 });
 
 test("批量输入忽略空值，每个词条生成独立候选并共享本次配置", () => {
-  const common = { definition: "共同释义", scopes: [globalScope, deviceScope], status: "disabled" };
+  const common = { definition: "共同释义", scopes: [deviceScope, safetyScope], status: "disabled" };
   const result = validateBatch(["甲", "  ", "乙"], common, []);
   assert.equal(result.valid, true);
   assert.deepEqual(result.candidates.map(entry => entry.name), ["甲", "乙"]);
@@ -47,10 +47,12 @@ test("已有与同批词条冲突阻止保存，规范化后重复也阻止", ()
   assert.equal(validateEntry(candidate({ name: "甲\n乙" }), []).valid, false);
 });
 
-test("应用范围必填，混选去重与交集冲突保持", () => {
+test("应用范围必填，全局互斥且多个Agent可去重，与交集冲突保持", () => {
   for (const scopes of [[], undefined, "global", [null], [{ type: "kb", id: "kb-device" }], [{ type: "app", id: "missing" }]]) assert.ok(validateEntry(candidate({ scopes }), []).errors.scopes);
-  const result = validateEntry(candidate({ scopes: [globalScope, deviceScope, deviceScope] }), []);
-  assert.deepEqual(result.normalized.scopes, [globalScope, deviceScope]);
+  assert.equal(validateEntry(candidate({ scopes: [globalScope, deviceScope] }), []).valid, false);
+  const result = validateEntry(candidate({ scopes: [deviceScope, safetyScope, deviceScope] }), []);
+  assert.equal(result.valid, true);
+  assert.deepEqual(result.normalized.scopes, [deviceScope, safetyScope]);
   const existing = candidate({ id: "existing", scopes: [deviceScope, safetyScope] });
   assert.equal(validateEntry(candidate({ scopes: [globalScope, deviceScope] }), [existing]).valid, false);
   assert.equal(validateEntry(candidate({ scopes: [globalScope] }), [existing]).valid, true);
@@ -69,7 +71,7 @@ test("范围筛选取并集、空选和全选显示全部，搜索只匹配词�
 });
 
 test("CSV 四列，单元格多个词条展开成独立记录，空项忽略", () => {
-  const parsed = importRowsToEntries(toCsv([CSV_HEADERS, ["甲、、乙、", "共享释义", "全局|设备运维助手", "停用"]]));
+  const parsed = importRowsToEntries(toCsv([CSV_HEADERS, ["甲、、乙、", "共享释义", "安全规程助手|设备运维助手", "停用"]]));
   assert.equal(parsed.allValid, true);
   assert.deepEqual(parsed.entries.map(entry => entry.name), ["甲", "乙"]);
   assert.equal(new Set(parsed.entries.map(entry => entry.id)).size, 2);
@@ -95,6 +97,7 @@ test("导入现有冲突、同单元格及跨行冲突、无效范围全部阻�
     [["甲", "释义", "全局", "启用"], ["甲", "释义", "全局", "启用"]],
     [["隔离开关、乙", "释义", "全局", "启用"]],
     [["甲", "释义", "未知Agent", "启用"]],
+    [["甲", "释义", "全局|设备运维助手", "启用"]],
   ]) assert.equal(importRowsToEntries(toCsv([CSV_HEADERS, ...rows]), { entries: [candidate()] }).allValid, false);
   assert.equal(importRowsToEntries("不支持的表头\n甲").headersOk, false);
 });

@@ -34,6 +34,57 @@ async function selectScopes(page, names) {
   await page.keyboard.press("Escape");
 }
 
+test("新增编辑范围没有全选，全局与Agent互斥且Agent支持多选", async ({ page }) => {
+  const errors = await open(page);
+  await terms(page);
+  await page.locator("#btn-black-add").click();
+  await expect(page.locator("#term-name")).toBeFocused();
+  await page.locator("#term-name").fill("范围互斥测试");
+  await page.locator("#term-definition").fill("应用范围测试释义");
+  let root = await picker(page, "term-scope-picker");
+  await expect(root.getByRole("checkbox", { name: "全选", exact: true })).toHaveCount(0);
+  const global = root.getByRole("checkbox", { name: "全局", exact: true });
+  const device = root.getByRole("checkbox", { name: "设备运维助手", exact: true });
+  const safety = root.getByRole("checkbox", { name: "安全规程助手", exact: true });
+  await global.check();
+  await expect(device).toBeDisabled();
+  await expect(safety).toBeDisabled();
+  await root.getByRole("searchbox").fill("运维");
+  await expect(device).toBeDisabled();
+  await root.getByRole("searchbox").fill("");
+  await shot(page, "13-create-global-exclusive.png");
+  await global.uncheck();
+  await expect(device).toBeEnabled();
+  await device.check();
+  await safety.check();
+  await expect(global).toBeDisabled();
+  await shot(page, "14-create-agents-exclusive.png");
+  await page.keyboard.press("Escape");
+  await page.locator("#btn-term-save").click();
+  await page.locator("#black-search").fill("范围互斥测试");
+  const row = page.locator("#black-tbody tr");
+  await expect(row.locator("td").nth(2)).toHaveText("设备运维助手、安全规程助手");
+  await row.getByRole("button", { name: "编辑", exact: true }).click();
+  await expect(page.locator("#term-name")).toBeFocused();
+  root = await picker(page, "term-scope-picker");
+  await expect(root.getByRole("checkbox", { name: "全选", exact: true })).toHaveCount(0);
+  await expect(global).toBeDisabled();
+  await device.uncheck();
+  await expect(global).toBeDisabled();
+  await safety.uncheck();
+  await expect(global).toBeEnabled();
+  await global.check();
+  await expect(device).toBeDisabled();
+  await shot(page, "15-edit-global-exclusive.png");
+  await page.keyboard.press("Escape");
+  await page.locator("#btn-term-save").click();
+  await page.reload({ waitUntil: "networkidle" });
+  await terms(page);
+  await page.locator("#black-search").fill("范围互斥测试");
+  await expect(row.locator("td").nth(2)).toHaveText("全局");
+  expect(errors).toEqual([]);
+});
+
 test("新增批量拆为独立记录，空值忽略，单条编辑保留次数", async ({ page }) => {
   const errors = await open(page);
   await terms(page);
@@ -51,7 +102,7 @@ test("新增批量拆为独立记录，空值忽略，单条编辑保留次数",
   await page.getByRole("button", { name: "删除词条 3", exact: true }).click();
   await page.locator("#btn-add-term").click();
   await page.locator("#term-definition").fill("本次共享释义");
-  await selectScopes(page, ["全局", "设备运维助手", "安全规程助手"]);
+  await selectScopes(page, ["设备运维助手", "安全规程助手"]);
   await page.locator('input[name="term-status"][value="disabled"]').check();
   await shot(page, "05-batch-create.png");
   await page.locator("#btn-term-save").click();
@@ -61,7 +112,7 @@ test("新增批量拆为独立记录，空值忽略，单条编辑保留次数",
   await expect(rows.locator("td:first-child")).toHaveText(["现场甲", "现场乙"]);
   for (const row of await rows.all()) {
     await expect(row).toContainText("本次共享释义");
-    await expect(row.locator("td").nth(2)).toHaveText("全局、设备运维助手、安全规程助手");
+    await expect(row.locator("td").nth(2)).toHaveText("设备运维助手、安全规程助手");
     await expect(row.locator("td").nth(4)).toHaveText("0");
     await expect(row.locator(".status-disabled")).toBeVisible();
   }
@@ -167,7 +218,7 @@ test("导入顿号拆成独立记录，导出每条一行，冲突时原子阻�
   const errors = await open(page);
   await terms(page);
   await page.locator("#btn-black-import").click();
-  await page.locator("#import-text").fill('词条,释义,应用范围,状态\n导入甲、、导入乙,共同释义,全局|设备运维助手,启用');
+  await page.locator("#import-text").fill('词条,释义,应用范围,状态\n导入甲、、导入乙,共同释义,安全规程助手|设备运维助手,启用');
   await page.locator("#btn-preview-import").click();
   await expect(page.locator("#import-summary")).toContainText("通过 1 行");
   await shot(page, "10-import-preview.png");
@@ -184,7 +235,7 @@ test("导入顿号拆成独立记录，导出每条一行，冲突时原子阻�
   expect(parsed.entries.map(entry => entry.name)).toEqual(["导入甲", "导入乙"]);
   expect(parsed.entries.every(entry => entry.scopes.length === 2 && entry.recallCount === 0)).toBe(true);
   await page.locator("#btn-black-import").click();
-  for (const value of ['词条,释义,应用范围,状态\n导入甲、新词,释义,全局,启用', '词条,释义,应用范围,状态\n新词、新词,释义,全局,启用']) {
+  for (const value of ['词条,释义,应用范围,状态\n导入甲、新词,释义,设备运维助手,启用', '词条,释义,应用范围,状态\n新词、新词,释义,全局,启用', '词条,释义,应用范围,状态\n新词,释义,全局|设备运维助手,启用']) {
     await page.locator("#import-text").fill(value);
     await page.locator("#btn-preview-import").click();
     await expect(page.locator("#btn-import-confirm")).toBeDisabled();
