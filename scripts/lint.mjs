@@ -23,7 +23,7 @@ check(!/terms-meta|全局\s*\$\{|指定 Agent\s*\$\{/.test(html + app), "不得�
 check(!/\u9ed1\u8bdd|\u4f5c\u7528\u8303\u56f4/.test(html + app + domain), "产品文案必须统一为词条管理、词条增强和应用范围");
 check(!/\u522b\u540d|\u53ef\u6269\u5c55\u5c5e\u6027|\u8bcd\u6761\u540d\u79f0|alias|attribute-row|term-attributes/.test(html + app + domain + liveCss), "词条只保留词条、释义、应用范围和状态四项维护信息");
 check(html.includes("召回次数") && app.includes("compareEntries"), "列表必须显示次数并使用默认排序");
-check(!html.includes('id="btn-black-audit"') && app.includes('data-term-action="history"'), "变更记录必须从单条记录进入");
+check(html.includes('id="btn-black-audit"') && !/data-term-action="history"|auditTermId/.test(app), "变更记录必须为全局工具栏入口，不得保留行内入口或单条筛选");
 check(!/rollback|canRollback|回滚/.test(app + html), "变更记录仅展示日志，不得包含修改记录的入口或路径");
 const termForm = html.match(/<form id="term-form"[\s\S]*?<\/form>/)?.[0] || "";
 check(!/操作人|更新人|创建人/.test(termForm), "词条表单不得收集人员信息");

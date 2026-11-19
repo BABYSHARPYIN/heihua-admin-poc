@@ -3,7 +3,7 @@ import { mkdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { importRowsToEntries } from "../domain.mjs";
 
-const screenshotDir = resolve(process.cwd(), "docs/screenshots/records-final");
+const screenshotDir = resolve(process.cwd(), "docs/screenshots/global-final");
 mkdirSync(screenshotDir, { recursive: true });
 
 async function open(page) {
@@ -34,54 +34,55 @@ async function selectScopes(page, names) {
   await page.keyboard.press("Escape");
 }
 
-test("新增编辑范围没有全选，全局与Agent互斥且Agent支持多选", async ({ page }) => {
+test("新增编辑支持全选与全局Agent混选，保存后完整回显", async ({ page }) => {
   const errors = await open(page);
   await terms(page);
-  await page.locator("#btn-black-add").click();
-  await expect(page.locator("#term-name")).toBeFocused();
-  await page.locator("#term-name").fill("范围互斥测试");
-  await page.locator("#term-definition").fill("应用范围测试释义");
-  let root = await picker(page, "term-scope-picker");
-  await expect(root.getByRole("checkbox", { name: "全选", exact: true })).toHaveCount(0);
-  const global = root.getByRole("checkbox", { name: "全局", exact: true });
-  const device = root.getByRole("checkbox", { name: "设备运维助手", exact: true });
-  const safety = root.getByRole("checkbox", { name: "安全规程助手", exact: true });
-  await global.check();
-  await expect(device).toBeDisabled();
-  await expect(safety).toBeDisabled();
-  await root.getByRole("searchbox").fill("运维");
-  await expect(device).toBeDisabled();
-  await root.getByRole("searchbox").fill("");
-  await shot(page, "13-create-global-exclusive.png");
-  await global.uncheck();
-  await expect(device).toBeEnabled();
-  await device.check();
-  await safety.check();
-  await expect(global).toBeDisabled();
-  await shot(page, "14-create-agents-exclusive.png");
-  await page.keyboard.press("Escape");
-  await page.locator("#btn-term-save").click();
-  await page.locator("#black-search").fill("范围互斥测试");
-  const row = page.locator("#black-tbody tr");
-  await expect(row.locator("td").nth(2)).toHaveText("设备运维助手、安全规程助手");
-  await row.getByRole("button", { name: "编辑", exact: true }).click();
-  await expect(page.locator("#term-name")).toBeFocused();
-  root = await picker(page, "term-scope-picker");
-  await expect(root.getByRole("checkbox", { name: "全选", exact: true })).toHaveCount(0);
-  await expect(global).toBeDisabled();
-  await device.uncheck();
-  await expect(global).toBeDisabled();
-  await safety.uncheck();
-  await expect(global).toBeEnabled();
-  await global.check();
-  await expect(device).toBeDisabled();
-  await shot(page, "15-edit-global-exclusive.png");
-  await page.keyboard.press("Escape");
-  await page.locator("#btn-term-save").click();
-  await page.reload({ waitUntil: "networkidle" });
+  await page.locator('#btn-black-add').click();
+  await expect(page.locator('#term-name')).toBeFocused();
+  await page.locator('#term-name').fill('混合范围测试');
+  await page.locator('#term-definition').fill('应用范围测试释义');
+  let root = await picker(page, 'term-scope-picker');
+  await root.getByRole('checkbox', { name: '全局', exact: true }).check();
+  await root.getByRole('searchbox').fill('运维');
+  await root.getByRole('checkbox', { name: '设备运维助手', exact: true }).check();
+  await root.getByRole('searchbox').fill('');
+  await expect(root.getByRole('checkbox', { name: '全局', exact: true })).toBeChecked();
+  await shot(page, '13-create-mixed-scopes.png');
+  await page.keyboard.press('Escape');
+  await page.locator('#btn-term-save').click();
+  await page.locator('#black-search').fill('混合范围测试');
+  const row = page.locator('#black-tbody tr');
+  await expect(row.locator('td').nth(2)).toHaveText('全局、设备运维助手');
+  await row.getByRole('button', { name: '编辑', exact: true }).click();
+  await expect(page.locator('#term-name')).toBeFocused();
+  root = await picker(page, 'term-scope-picker');
+  await expect(root.getByRole('checkbox', { name: '全局', exact: true })).toBeChecked();
+  await expect(root.getByRole('checkbox', { name: '设备运维助手', exact: true })).toBeChecked();
+  await root.getByRole('searchbox').fill('安全');
+  await root.getByRole('checkbox', { name: '全选', exact: true }).check();
+  await root.getByRole('searchbox').fill('');
+  for (const checkbox of await root.getByRole('checkbox').all()) await expect(checkbox).toBeChecked();
+  await shot(page, '14-edit-all-scopes.png');
+  await page.keyboard.press('Escape');
+  await page.locator('#btn-term-save').click();
+  await page.reload({ waitUntil: 'networkidle' });
   await terms(page);
-  await page.locator("#black-search").fill("范围互斥测试");
-  await expect(row.locator("td").nth(2)).toHaveText("全局");
+  await page.locator('#black-search').fill('混合范围测试');
+  await expect(row.locator('td').nth(2)).toHaveText('全局、设备运维助手、安全规程助手、客户服务助手');
+  await row.getByRole('button', { name: '编辑', exact: true }).click();
+  await expect(page.locator('#term-name')).toBeFocused();
+  root = await picker(page, 'term-scope-picker');
+  await expect(root.getByRole('checkbox', { name: '全选', exact: true })).toBeChecked();
+  await root.getByRole('checkbox', { name: '全选', exact: true }).uncheck();
+  await page.keyboard.press('Escape');
+  await page.locator('#btn-term-save').click();
+  await expect(page.locator('#err-term-scopes')).toHaveText('请选择应用范围');
+  await page.keyboard.press('Escape');
+  await page.locator('#btn-black-add').click();
+  root = await picker(page, 'term-scope-picker');
+  await root.getByRole('checkbox', { name: '全选', exact: true }).check();
+  for (const checkbox of await root.getByRole('checkbox').all()) await expect(checkbox).toBeChecked();
+  await shot(page, '15-create-all-scopes.png');
   expect(errors).toEqual([]);
 });
 
@@ -140,7 +141,7 @@ test("新增批量拆为独立记录，空值忽略，单条编辑保留次数",
   expect(errors).toEqual([]);
 });
 
-test("单条变更记录按ID隔离，同名不同范围也不会混入", async ({ page }) => {
+test("全局变更记录展示全部日志且不受列表筛选影响，仅供查看", async ({ page }) => {
   await page.addInitScript(() => {
     const entries = [
       { id: "audit-a", name: "相同用语", definition: "甲释义", scopes: [{ type: "global" }], status: "enabled", recallCount: 100, operator: "工程师甲" },
@@ -151,19 +152,22 @@ test("单条变更记录按ID隔离，同名不同范围也不会混入", async 
   });
   const errors = await open(page);
   await terms(page);
-  await page.locator("#black-tbody tr").first().getByRole("button", { name: "变更记录", exact: true }).click();
-  await expect(page.locator("#audit-content tbody tr")).toHaveCount(1);
-  await expect(page.locator("#audit-content tbody tr td").nth(4)).toHaveText("admin");
-  await expect(page.locator("#audit-content tbody tr td").nth(1)).toHaveText("新增");
-  await expect(page.locator("#audit-content th")).toHaveText(["时间", "操作", "词条", "应用范围", "操作人"]);
-  await expect(page.locator("#audit-content button, #audit-content a")).toHaveCount(0);
-  await shot(page, "12-record-history.png");
-  await page.keyboard.press("Escape");
-  await page.locator("#black-tbody tr").nth(1).getByRole("button", { name: "变更记录", exact: true }).click();
-  await expect(page.locator("#audit-content tbody tr")).toHaveCount(1);
-  await expect(page.locator("#audit-content tbody tr td").nth(4)).toHaveText("admin");
-  await expect(page.locator("#audit-content tbody tr td").nth(1)).toHaveText("导入");
-  await expect(page.locator("#audit-content button, #audit-content a")).toHaveCount(0);
+  await expect(page.locator('#black-tbody').getByRole('button', { name: '变更记录', exact: true })).toHaveCount(0);
+  await page.locator('#black-search').fill('甲释义');
+  await expect(page.locator('#black-tbody tr')).toHaveCount(1);
+  await page.locator('#btn-black-audit').click();
+  await expect(page.locator('#audit-content tbody tr')).toHaveCount(2);
+  await expect(page.locator('#audit-content tbody tr td:nth-child(2)')).toHaveText(['新增', '导入']);
+  await expect(page.locator('#audit-content tbody tr td:nth-child(4)')).toHaveText(['全局', '设备运维助手']);
+  await expect(page.locator('#audit-content tbody tr td:nth-child(5)')).toHaveText(['admin', 'admin']);
+  await expect(page.locator('#audit-content th')).toHaveText(['时间', '操作', '词条', '应用范围', '操作人']);
+  await expect(page.locator('#audit-content button, #audit-content a')).toHaveCount(0);
+  await shot(page, '12-global-history.png');
+  await page.keyboard.press('Escape');
+  await page.locator('#black-search').fill('无匹配词条');
+  await expect(page.locator('#black-tbody tr')).toHaveCount(0);
+  await page.locator('#btn-black-audit').click();
+  await expect(page.locator('#audit-content tbody tr')).toHaveCount(2);
   expect(errors).toEqual([]);
 });
 
@@ -218,7 +222,7 @@ test("导入顿号拆成独立记录，导出每条一行，冲突时原子阻�
   const errors = await open(page);
   await terms(page);
   await page.locator("#btn-black-import").click();
-  await page.locator("#import-text").fill('词条,释义,应用范围,状态\n导入甲、、导入乙,共同释义,安全规程助手|设备运维助手,启用');
+  await page.locator("#import-text").fill('词条,释义,应用范围,状态\n导入甲、、导入乙,共同释义,全局|设备运维助手,启用');
   await page.locator("#btn-preview-import").click();
   await expect(page.locator("#import-summary")).toContainText("通过 1 行");
   await shot(page, "10-import-preview.png");
@@ -235,7 +239,7 @@ test("导入顿号拆成独立记录，导出每条一行，冲突时原子阻�
   expect(parsed.entries.map(entry => entry.name)).toEqual(["导入甲", "导入乙"]);
   expect(parsed.entries.every(entry => entry.scopes.length === 2 && entry.recallCount === 0)).toBe(true);
   await page.locator("#btn-black-import").click();
-  for (const value of ['词条,释义,应用范围,状态\n导入甲、新词,释义,设备运维助手,启用', '词条,释义,应用范围,状态\n新词、新词,释义,全局,启用', '词条,释义,应用范围,状态\n新词,释义,全局|设备运维助手,启用']) {
+  for (const value of ['词条,释义,应用范围,状态\n导入甲、新词,释义,设备运维助手,启用', '词条,释义,应用范围,状态\n新词、新词,释义,全局,启用']) {
     await page.locator("#import-text").fill(value);
     await page.locator("#btn-preview-import").click();
     await expect(page.locator("#btn-import-confirm")).toBeDisabled();
@@ -256,7 +260,7 @@ test("编辑保留次数，变更记录只读，查看身份禁止写入", async
   await page.locator("#term-definition").fill("更新后释义");
   await page.locator("#btn-term-save").click();
   await expect(first.locator("td").nth(4)).toHaveText(count);
-  await first.getByRole("button", { name: "变更记录", exact: true }).click();
+  await page.locator("#btn-black-audit").click();
   await expect(page.locator("#audit-content tbody tr")).toHaveCount(1);
   await expect(page.locator("#audit-content tbody td").nth(4)).toHaveText("admin");
   await expect(page.locator("#audit-content button, #audit-content a")).toHaveCount(0);
@@ -338,8 +342,9 @@ test('列表列与次数排序、范围纯文本、搜索分页', async ({ page 
   const errors = await open(page);
   await terms(page);
   await expect(page.locator('#page-terms th')).toHaveText(['词条', '释义', '应用范围', '状态', '召回次数', '更新时间', '操作人', '操作']);
-  await expect(page.locator('#page-terms .toolbar').getByRole('button', { name: '变更记录', exact: true })).toHaveCount(0);
-  const historyBox = await page.locator('#black-tbody tr').first().getByRole('button', { name: '变更记录', exact: true }).boundingBox();
+  await expect(page.locator('#page-terms .toolbar').getByRole('button', { name: '变更记录', exact: true })).toHaveCount(1);
+  await expect(page.locator('#black-tbody').getByRole('button', { name: '变更记录', exact: true })).toHaveCount(0);
+  const historyBox = await page.locator('#btn-black-audit').boundingBox();
   expect(historyBox.x + historyBox.width).toBeLessThanOrEqual(1429);
   await expect(page.locator('#black-tbody tr')).toHaveCount(8);
   const counts = await page.locator('#black-tbody tr td:nth-child(5)').allTextContents();

@@ -1,6 +1,6 @@
-import { APPS, normalizeScopes, normalizeText, scopeKey, scopeLabel } from "./domain.mjs?v=20261119-exclusive";
+import { APPS, normalizeScopes, normalizeText, scopeKey, scopeLabel } from "./domain.mjs?v=20261119-global-log";
 
-export function createScopePicker(root, { label, placeholder, onChange, exclusiveGlobal = false }) {
+export function createScopePicker(root, { label, placeholder, onChange }) {
   const options = [{ type: "global" }, ...APPS.map(app => ({ type: "app", id: app.id }))];
   let selected = new Set();
   const trigger = document.createElement("button");
@@ -53,9 +53,7 @@ export function createScopePicker(root, { label, placeholder, onChange, exclusiv
   empty.className = "scope-picker-empty";
   empty.textContent = "暂无匹配 Agent";
   empty.hidden = true;
-  panel.append(search);
-  if (!exclusiveGlobal) panel.append(allLabel);
-  panel.append(list, empty);
+  panel.append(search, allLabel, list, empty);
   root.append(trigger, panel);
 
   function value() {
@@ -70,9 +68,6 @@ export function createScopePicker(root, { label, placeholder, onChange, exclusiv
     all.indeterminate = selected.size > 0 && !all.checked;
     for (const { input, scope } of rows) {
       input.checked = selected.has(scopeKey(scope));
-      input.disabled = exclusiveGlobal && (scope.type === "global"
-        ? [...selected].some(key => key !== "global")
-        : selected.has("global"));
     }
   }
 
@@ -123,7 +118,6 @@ export function createScopePicker(root, { label, placeholder, onChange, exclusiv
     close,
     set(scopes, disabled = false) {
       selected = new Set(normalizeScopes(scopes).map(scopeKey));
-      if (exclusiveGlobal && selected.has("global")) selected = new Set(["global"]);
       trigger.disabled = disabled;
       update();
       close();

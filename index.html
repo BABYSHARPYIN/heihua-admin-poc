@@ -6,8 +6,8 @@
   <meta name="description" content="智能问答平台 · 词条管理 POC" />
   <title>智能问答平台 · 词条管理 POC</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23141414'/%3E%3Cpath d='M16 5 7 10v11l9 5 9-5V10l-9-5Zm0 11 9-5m-9 5-9-5m9 5v11' fill='none' stroke='white' stroke-width='1.5'/%3E%3C/svg%3E" />
-  <link rel="stylesheet" href="style.css?v=20261119-exclusive" />
-  <link rel="stylesheet" href="live.css?v=20261119-exclusive" />
+  <link rel="stylesheet" href="style.css?v=20261119-global-log" />
+  <link rel="stylesheet" href="live.css?v=20261119-global-log" />
 </head>
 <body>
   <div class="app">
@@ -282,6 +282,7 @@
               </select>
               <span class="result-count" id="black-result-count"></span>
               <div class="toolbar-right">
+                <button class="btn" type="button" id="btn-black-audit">变更记录</button>
                 <button class="btn" type="button" id="btn-black-export">导出</button>
                 <button class="btn" type="button" id="btn-black-import" data-global-write>导入</button>
                 <button class="btn btn-primary" type="button" id="btn-black-add" data-global-write>新增</button>
@@ -457,6 +458,6 @@
 
   <div class="toast-wrap" id="toast-wrap" role="status" aria-live="polite"></div>
 
-  <script type="module" src="app.js?v=20261119-exclusive"></script>
+  <script type="module" src="app.js?v=20261119-global-log"></script>
 </body>
 </html>

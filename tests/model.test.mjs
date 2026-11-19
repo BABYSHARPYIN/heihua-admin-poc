@@ -47,9 +47,10 @@ test("已有与同批词条冲突阻止保存，规范化后重复也阻止", ()
   assert.equal(validateEntry(candidate({ name: "甲\n乙" }), []).valid, false);
 });
 
-test("应用范围必填，全局互斥且多个Agent可去重，与交集冲突保持", () => {
+test("应用范围必填，全局与多个Agent可混选去重，与交集冲突保持", () => {
   for (const scopes of [[], undefined, "global", [null], [{ type: "kb", id: "kb-device" }], [{ type: "app", id: "missing" }]]) assert.ok(validateEntry(candidate({ scopes }), []).errors.scopes);
-  assert.equal(validateEntry(candidate({ scopes: [globalScope, deviceScope] }), []).valid, false);
+  assert.equal(validateEntry(candidate({ scopes: [globalScope, deviceScope] }), []).valid, true);
+  assert.deepEqual(validateEntry(candidate({ scopes: [globalScope, deviceScope, globalScope] }), []).normalized.scopes, [globalScope, deviceScope]);
   const result = validateEntry(candidate({ scopes: [deviceScope, safetyScope, deviceScope] }), []);
   assert.equal(result.valid, true);
   assert.deepEqual(result.normalized.scopes, [deviceScope, safetyScope]);
@@ -97,7 +98,6 @@ test("导入现有冲突、同单元格及跨行冲突、无效范围全部阻�
     [["甲", "释义", "全局", "启用"], ["甲", "释义", "全局", "启用"]],
     [["隔离开关、乙", "释义", "全局", "启用"]],
     [["甲", "释义", "未知Agent", "启用"]],
-    [["甲", "释义", "全局|设备运维助手", "启用"]],
   ]) assert.equal(importRowsToEntries(toCsv([CSV_HEADERS, ...rows]), { entries: [candidate()] }).allValid, false);
   assert.equal(importRowsToEntries("不支持的表头\n甲").headersOk, false);
 });
