@@ -16,9 +16,9 @@ import {
   validateBatch,
   compareEntries,
   definitionSummary,
-} from "./domain.mjs?v=20261119-exclusive";
-import { INITIAL_ENTRIES } from "./data.mjs?v=20261119-exclusive";
-import { createScopePicker } from "./scope-picker.mjs?v=20261119-exclusive";
+} from "./domain.mjs?v=20261119-global-log";
+import { INITIAL_ENTRIES } from "./data.mjs?v=20261119-global-log";
+import { createScopePicker } from "./scope-picker.mjs?v=20261119-global-log";
 
 const STORAGE_KEY = "heihua-admin-poc-state-v2";
 const LEGACY_STORAGE_KEY = "heihua-admin-poc-state-v1";
@@ -58,7 +58,6 @@ function defaultSwitches() {
 const state = {
   entries: INITIAL_ENTRIES.map(migrateEntry).filter(Boolean),
   audit: [],
-  auditTermId: null,
   identity: "full",
   visibility: { ...DEFAULT_VISIBILITY },
   fileMode: { ...DEFAULT_FILE_MODE },
@@ -434,14 +433,12 @@ function renderBlackTable() {
 function termActions(entry, context) {
   const perms = permissions();
   const writable = perms.canWriteGlobal;
-  const history = `<button class="btn-link" type="button" data-term-action="history" data-term-id="${escapeHtml(entry.id)}">变更记录</button>`;
-  if (!writable) return `<button class="btn-link" type="button" data-term-action="view" data-term-id="${entry.id}">查看</button>` + history;
+  if (!writable) return `<button class="btn-link" type="button" data-term-action="view" data-term-id="${entry.id}">查看</button>`;
   const toggleLabel = entry.status === "enabled" ? "停用" : "启用";
   return [
     `<button class="btn-link" type="button" data-term-action="edit" data-term-id="${entry.id}">编辑</button>`,
     `<button class="btn-link" type="button" data-term-action="toggle" data-term-id="${entry.id}">${toggleLabel}</button>`,
     `<button class="btn-link danger" type="button" data-term-action="delete" data-term-id="${entry.id}">删除</button>`,
-    history,
   ].join("");
 }
 
@@ -488,10 +485,6 @@ function handleTermAction(action, termId) {
   const perms = permissions();
   const source = "global";
   const canWrite = perms.canWriteGlobal;
-  if (action === "history") {
-    if (perms.canViewTerms) openAudit(entry.id);
-    return;
-  }
   if (action === "view" || !canWrite) {
     openTermEditor({ id: entry.id, readOnly: true, source });
     return;
@@ -875,7 +868,7 @@ function confirmImport() {
 /* ——— 变更记录 ——— */
 
 function renderAudit() {
-  const logs = state.audit.filter(log => log.termId === state.auditTermId);
+  const logs = state.audit;
   const content = document.getElementById("audit-content");
   document.getElementById("audit-title").textContent = "变更记录";
   if (!logs.length) {
@@ -904,9 +897,8 @@ function renderAudit() {
     </div>`;
 }
 
-function openAudit(termId) {
-  if (!state.entries.some(entry => entry.id === termId)) return;
-  state.auditTermId = termId;
+function openAudit() {
+  if (!permissions().canViewTerms) return;
   renderAudit();
   openModal("modal-audit");
 }
@@ -1054,11 +1046,11 @@ function bindEvents() {
   termScopePicker = createScopePicker(document.getElementById("term-scope-picker"), {
     label: "应用范围",
     placeholder: "请选择应用范围",
-    exclusiveGlobal: true,
     onChange() { refreshTermValidation(); },
   });
   document.getElementById("btn-black-add").addEventListener("click", () => openTermEditor({ source: "global" }));
   document.getElementById("btn-black-import").addEventListener("click", openImport);
+  document.getElementById("btn-black-audit").addEventListener("click", openAudit);
   document.getElementById("btn-black-export").addEventListener("click", () => {
     const entries = searchEntries(state.entries, state.globalFilters).sort(compareEntries);
     exportEntries(entries, "词条");
