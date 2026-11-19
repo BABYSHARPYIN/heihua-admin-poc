@@ -20,6 +20,45 @@ async function shot(page, name) {
   await page.screenshot({ path: resolve(screenshotDir, name), fullPage: true });
 }
 
+test("现网外壳、卡片、设置页签与效果开关保持统一", async ({ page }) => {
+  const errors = await open(page);
+  const nav = page.getByRole("navigation", { name: "主导航" });
+  const navBox = await nav.boundingBox();
+  expect(navBox.y).toBeLessThan(60);
+  expect(navBox.width).toBeGreaterThan(navBox.height * 3);
+  await expect(page.locator(".sidebar")).toHaveCount(0);
+  await expect(page.locator(".knowledge-card")).toHaveCount(3);
+  await shot(page, "09-knowledge-list.png");
+  await page.locator('[data-open-kb="kb-device"]').first().click();
+  await expect(page.getByRole("tab", { name: "基本信息", exact: true })).toHaveAttribute("aria-selected", "true");
+  await expect(page.locator("#basic-kb-name")).toHaveValue("设备运维知识库");
+  const tabColor = await page.locator('.kb-tab.active').evaluate(el => getComputedStyle(el).color);
+  expect(tabColor).toBe("rgb(23, 23, 23)");
+  await shot(page, "10-knowledge-basic.png");
+  await page.getByRole("tab", { name: "公开性设置" }).click();
+  await expect(page.locator("#kb-panel-visibility table th")).toHaveText(["账号", "姓名", "角色", "操作"]);
+  await shot(page, "11-knowledge-visibility.png");
+  await page.getByRole("tab", { name: "文件更新" }).click();
+  await expect(page.getByText("暂未配置", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "配置更新策略" }).click();
+  await expect(page.getByLabel("数据源", { exact: true })).toBeVisible();
+  await shot(page, "12-knowledge-file-update.png");
+  await page.getByRole("button", { name: "专业 Agent", exact: true }).click();
+  await expect(page.locator(".agent-card")).toHaveCount(3);
+  await shot(page, "13-agent-list.png");
+  await page.locator('[data-agent-id="app-device"]').click();
+  await page.getByRole("tab", { name: "Agent配置", exact: true }).click();
+  const switchSize = await page.locator("#switch-black").boundingBox();
+  expect(switchSize.width).toBe(28);
+  expect(switchSize.height).toBe(16);
+  expect(await page.locator('.switch-list').evaluate(el => getComputedStyle(el).backgroundColor)).toBe("rgb(245, 245, 245)");
+  expect(await page.locator('#row-black-enhance').evaluate(el => getComputedStyle(el).backgroundColor)).toBe("rgba(0, 0, 0, 0)");
+  await expect(page.locator("#switch-black")).toHaveAttribute("aria-checked", "true");
+  await expect(page.locator(".agent-preview")).toBeVisible();
+  await shot(page, "14-agent-config.png");
+  expect(errors).toEqual([]);
+});
+
 test("全局列表布局、分页、搜索和筛选", async ({ page }) => {
   const errors = await open(page);
   await page.getByRole("button", { name: "黑话管理" }).click();
@@ -107,8 +146,8 @@ test("导入先预览后写入，知识库页签锁定当前库", async ({ page 
   await page.locator("#btn-import-confirm").click();
   await expect(page.locator("#black-tbody tr", { hasText: "油色谱异常" })).toBeVisible();
 
-  await page.getByRole("button", { name: "知识库" }).click();
-  await page.locator("#kb-list-tbody tr", { hasText: "设备运维知识库" }).getByRole("button", { name: "设置" }).click();
+  await page.getByRole("button", { name: "知识库", exact: true }).click();
+  await page.locator('.knowledge-card[data-open-kb="kb-device"]').click();
   await page.getByRole("tab", { name: "黑话配置" }).click();
   await expect(page.locator("#kb-locked-note")).toContainText("设备运维知识库");
   await expect(page.locator("#kb-black-tbody tr")).toHaveCount(3);
@@ -132,6 +171,9 @@ test("导入先预览后写入，知识库页签锁定当前库", async ({ page 
 test("Agent 黑话增强开关与身份权限表现", async ({ page }) => {
   const errors = await open(page);
   await page.getByRole("button", { name: "专业 Agent" }).click();
+  await page.locator('[data-agent-id="app-device"]').click();
+  await page.getByRole("tab", { name: "Agent配置" }).click();
+  await page.locator(".agent-demo-details summary").click();
   await expect(page.locator("#demo-result")).toContainText("识别到");
   await expect(page.locator("#switch-black")).toHaveClass(/on/);
   await shot(page, "07-agent-effect.png");
@@ -141,9 +183,13 @@ test("Agent 黑话增强开关与身份权限表现", async ({ page }) => {
   await expect(page.locator("#switch-black")).not.toHaveClass(/on/);
   await page.reload({ waitUntil: "networkidle" });
   await page.getByRole("button", { name: "专业 Agent" }).click();
+  await page.locator('[data-agent-id="app-device"]').click();
+  await page.getByRole("tab", { name: "Agent配置" }).click();
   await expect(page.locator("#switch-black")).not.toHaveClass(/on/);
 
+  await page.locator(".demo-account summary").click();
   await page.locator("#identity-select").selectOption("view");
+  await page.locator(".demo-account summary").click();
   await expect(page.locator("#switch-black")).toBeDisabled();
   await page.getByRole("button", { name: "黑话管理" }).click();
   await expect(page.locator("#btn-black-add")).toBeHidden();
@@ -154,18 +200,42 @@ test("Agent 黑话增强开关与身份权限表现", async ({ page }) => {
   await page.keyboard.press("Escape");
   await shot(page, "08-view-only.png");
 
+  await page.locator(".demo-account summary").click();
   await page.locator("#identity-select").selectOption("none");
+  await page.locator(".demo-account summary").click();
   await expect(page.locator("#nav-blacktalk")).toBeHidden();
-  await page.getByRole("button", { name: "知识库" }).click();
-  await page.locator("#kb-list-tbody tr").first().getByRole("button", { name: "设置" }).click();
+  await page.getByRole("button", { name: "知识库", exact: true }).click();
+  await page.locator(".knowledge-card").first().click();
   await expect(page.getByRole("tab", { name: "黑话配置" })).toBeHidden();
 
+  await page.locator(".demo-account summary").click();
   await page.locator("#identity-select").selectOption("kb");
+  await page.locator(".demo-account summary").click();
   await expect(page.getByRole("tab", { name: "黑话配置" })).toBeVisible();
   await page.getByRole("tab", { name: "黑话配置" }).click();
   await expect(page.locator("#btn-kb-black-add")).toBeVisible();
   await page.getByRole("button", { name: "黑话管理" }).click();
   await expect(page.locator("#btn-black-add")).toBeHidden();
   await expect(page.locator("#btn-black-import")).toBeHidden();
+  expect(errors).toEqual([]);
+});
+
+test("导出、变更留痕与回滚保持可用", async ({ page }) => {
+  const errors = await open(page);
+  await page.getByRole("button", { name: "黑话管理", exact: true }).click();
+  const downloadPromise = page.waitForEvent("download");
+  await page.locator("#btn-black-export").click();
+  const download = await downloadPromise;
+  expect(download.suggestedFilename()).toMatch(/\.csv$/);
+  const firstRow = page.locator("#black-tbody tr").first();
+  const name = await firstRow.locator(".cell-main").innerText();
+  await firstRow.getByRole("button", { name: "停用", exact: true }).click();
+  await page.locator("#btn-confirm-ok").click();
+  await page.locator("#btn-black-audit").click();
+  await expect(page.locator("#audit-content")).toContainText(name);
+  await page.locator("[data-rollback-log]").first().click();
+  await page.locator("#btn-confirm-ok").click();
+  await page.keyboard.press("Escape");
+  await expect(page.locator("#black-tbody tr", { hasText: name }).locator(".status-enabled")).toBeVisible();
   expect(errors).toEqual([]);
 });

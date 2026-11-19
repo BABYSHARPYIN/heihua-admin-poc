@@ -34,9 +34,13 @@ npm test
 npm run test:ui
 ```
 
-- `lint`：检查重复/缺失 DOM id、弹层目标、按钮类型、产品范围外文案、工具栏下拉约束和导入示例表头。
+- `lint`：检查重复/缺失 DOM id、弹层目标、按钮类型、产品范围外文案、工具栏下拉约束、现网布局令牌、图标资源和导入示例表头。
 - `test`：覆盖规范化、冲突、分页、CSV、原子导入和范围优先级等领域规则。
-- `test:ui`：使用 Playwright 点击主要流程，并生成终态截图到 `docs/screenshots/final/`。
+- `test:ui`：仅对本地 POC 使用 Playwright 回归主要流程，在 1429×878 视口生成终态截图到 `docs/screenshots/final/`。现网只使用用户本机 Chrome 的 Monavi。
+
+## 现网对照
+
+走查页面、视觉令牌和环境差异见 `docs/live-reference.md`；190 现网截图在 `docs/screenshots/live/190/`，同视口对照在 `docs/screenshots/comparison/`。实现沿用现网顶部导航、卡片列表、知识库侧栏/设置页签、Agent 双栏配置、表格、控件与弹层样式。权限演示在右上角用户菜单内。
 
 ## 截图
 

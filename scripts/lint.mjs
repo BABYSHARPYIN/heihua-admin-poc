@@ -7,6 +7,7 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const html = readFileSync(resolve(root, "index.html"), "utf8");
 const app = readFileSync(resolve(root, "app.js"), "utf8");
 const css = readFileSync(resolve(root, "style.css"), "utf8");
+const liveCss = readFileSync(resolve(root, "live.css"), "utf8");
 const domain = readFileSync(resolve(root, "domain.mjs"), "utf8");
 
 const failures = [];
@@ -47,7 +48,7 @@ for (const word of forbiddenWords) {
 }
 
 const localAssets = [...html.matchAll(/(?:src|href)="([^"]+)"/g)]
-  .map((match) => match[1])
+  .map((match) => match[1].split("?")[0])
   .filter((value) => !/^(?:https?:|data:|#|\/)/.test(value));
 for (const asset of localAssets) {
   check(existsSync(resolve(root, asset)), `页面引用了不存在的本地资源：${asset}`);
@@ -65,6 +66,17 @@ check(
 check(domain.includes('export const CSV_HEADERS'), "domain.mjs 必须统一维护 CSV 表头");
 check(app.includes("confirmImport") && app.includes("importRowsToEntries"), "导入流程必须经过预览校验和确认写入");
 check(app.includes("canWriteGlobal") && app.includes("canWriteKb"), "身份切换必须同时约束全局与本库写权限");
+check(!html.includes('class="sidebar"'), "现网主导航为顶部横向导航，不得恢复全局侧栏");
+check(/src="app\.js\?v=/.test(html), "静态发布入口必须带资源版本号，避免新 HTML 与旧 JS 混用");
+check(html.includes('class="knowledge-grid"') && html.includes('class="agent-grid"'), "知识库和专业 Agent 必须保留现网卡片列表");
+check(html.includes('>Agent配置</button>') && html.includes('>权限设置</button>'), "Agent 必须沿用现网页签名称");
+check(/\.kb-tab\.active\s*\{[^}]*color:\s*#171717/.test(liveCss), "知识库设置选中页签必须使用现网黑色文字和底线");
+check(/\.switch\s*\{[^}]*width:\s*28px;[^}]*height:\s*16px/.test(liveCss), "效果设置开关必须为现网 28×16px");
+check(/table\.data th\s*\{[^}]*padding:\s*12px 8px/.test(liveCss), "表格单元格应沿用现网 12px 8px 内边距");
+check(!/monavi|Agent 正在操作|接管/.test(html + liveCss), "不得把浏览器扩展辅助界面复刻到产品中");
+for (const asset of [...liveCss.matchAll(/url\("([^"]+)"\)/g)].map(match => match[1])) {
+  check(existsSync(resolve(root, asset)), `现网样式引用了不存在的资源：${asset}`);
+}
 
 if (failures.length) {
   console.error("Lint failed:");

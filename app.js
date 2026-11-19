@@ -66,6 +66,10 @@ const state = {
   agentId: "app-device",
   agentTab: "effect",
   kbSearch: "",
+  kbVisibilityFilter: "all",
+  fileConfigured: {},
+  agentSearch: "",
+  memberContext: "kb",
   globalFilters: { keyword: "", scopeType: "all", status: "all", page: 1 },
   kbFilters: { keyword: "", status: "all", page: 1 },
   term: null,
@@ -93,6 +97,12 @@ function loadState() {
       }));
     }
     if (Array.isArray(saved.audit)) state.audit = saved.audit;
+    if (Array.isArray(saved.knowledgeBases)) {
+      for (const kb of KNOWLEDGE_BASES) {
+        const savedKb = saved.knowledgeBases.find(item => item.id === kb.id);
+        if (savedKb?.name) { kb.name = cleanText(savedKb.name); kb.description = cleanText(savedKb.description); }
+      }
+    }
     if (IDENTITY_LABELS[saved.identity]) state.identity = saved.identity;
     if (saved.visibility && typeof saved.visibility === "object") {
       state.visibility = { ...DEFAULT_VISIBILITY, ...saved.visibility };
@@ -100,6 +110,7 @@ function loadState() {
     if (saved.fileMode && typeof saved.fileMode === "object") {
       state.fileMode = { ...DEFAULT_FILE_MODE, ...saved.fileMode };
     }
+    if (saved.fileConfigured && typeof saved.fileConfigured === "object") state.fileConfigured = saved.fileConfigured;
     if (saved.switches) {
       const defaults = defaultSwitches();
       for (const key of Object.keys(defaults)) {
@@ -123,10 +134,12 @@ function saveState() {
       STORAGE_KEY,
       JSON.stringify({
         entries: state.entries,
+        knowledgeBases: KNOWLEDGE_BASES,
         audit: state.audit,
         identity: state.identity,
         visibility: state.visibility,
         fileMode: state.fileMode,
+        fileConfigured: state.fileConfigured,
         switches: state.switches,
         currentKbId: state.currentKbId,
       }),
@@ -266,7 +279,7 @@ function updateBreadcrumb() {
     html = '<span class="current">知识库</span>';
   } else if (state.currentPage === "kb-settings") {
     html = `<span>知识库</span><span class="sep">/</span><span>${escapeHtml(currentKb().name)}</span><span class="sep">/</span><span class="current">设置</span>`;
-  } else if (state.currentPage === "agent") {
+  } else if (state.currentPage === "agent" || state.currentPage === "agent-list") {
     html = '<span>专业 Agent</span><span class="sep">/</span><span class="current">Agent配置</span>';
   } else {
     html = '<span class="current">黑话管理</span>';
@@ -284,7 +297,7 @@ function setPage(page, options = {}) {
   document.querySelectorAll(".page").forEach((node) => node.classList.toggle("active", node.id === `page-${page}`));
   document.querySelectorAll(".nav-item[data-page]").forEach((node) => {
     const target = node.dataset.page;
-    const active = target === page || (page === "kb-settings" && target === "kb-list");
+    const active = target === page || (page === "kb-settings" && target === "kb-list") || (page === "agent" && target === "agent-list");
     node.classList.toggle("active", active);
   });
   updateBreadcrumb();
@@ -295,6 +308,7 @@ function renderCurrentPage() {
   if (state.currentPage === "kb-list") renderKbList();
   else if (state.currentPage === "kb-settings") renderKbSettings();
   else if (state.currentPage === "agent") renderAgent();
+  else if (state.currentPage === "agent-list") renderAgentList();
   else if (state.currentPage === "blacktalk") renderBlackTable();
 }
 
@@ -321,6 +335,7 @@ function renderPager(container, page, pages, onChange) {
 function renderKbList() {
   const keyword = normalizeText(state.kbSearch);
   const rows = KNOWLEDGE_BASES.filter((kb) => {
+    if (state.kbVisibilityFilter !== "all" && state.visibility[kb.id] !== state.kbVisibilityFilter) return false;
     if (!keyword) return true;
     return [kb.name, kb.code, kb.description].map(normalizeText).join("\n").includes(keyword);
   }).map((kb) => {
@@ -335,15 +350,12 @@ function renderKbList() {
   tbody.innerHTML = rows
     .map(
       (kb) => `
-      <tr>
-        <td><div class="cell-main">${escapeHtml(kb.name)}</div></td>
-        <td><span class="mono">${escapeHtml(kb.code)}</span></td>
-        <td><div class="definition-cell truncate-2" title="${escapeHtml(kb.description)}">${escapeHtml(kb.description)}</div></td>
-        <td><span class="tag ${kb.termCount ? "tag-orange" : "tag-plain"}">${kb.termCount} 条</span></td>
-        <td>${state.visibility[kb.id] === "public" ? '<span class="tag tag-green">公开访问</span>' : '<span class="tag tag-plain">受限访问</span>'}</td>
-        <td class="nowrap">${escapeHtml(formatDateTime(kb.updatedAt))}</td>
-        <td><button class="btn-link" type="button" data-open-kb="${kb.id}">设置</button></td>
-      </tr>`,
+      <article class="knowledge-card" data-open-kb="${kb.id}" tabindex="0" role="button" aria-label="打开${escapeHtml(kb.name)}">
+        <div class="resource-card-header"><span class="resource-icon"><span class="nav-icon nav-icon-books" aria-hidden="true"></span></span><div class="resource-card-title"><h3>${escapeHtml(kb.name)}</h3><small>创建者：演示用户</small></div>${state.visibility[kb.id] === "public" ? '<span class="tag tag-blue">公开</span>' : '<span class="tag tag-orange">私有</span>'}</div>
+        <p class="resource-card-description truncate-2">${escapeHtml(kb.description)}</p>
+        <div class="resource-card-tags"><span class="tag tag-plain">${escapeHtml(kb.code)}</span></div>
+        <div class="resource-card-footer"><span>文件数：${kb.id === "kb-device" ? 20 : 12}</span><span>应用数：1</span><button class="btn-link resource-settings" type="button" data-open-kb="${kb.id}" aria-label="设置">···</button></div>
+      </article>`,
     )
     .join("");
 
@@ -378,9 +390,13 @@ function renderKbSettings() {
   document.getElementById("settings-kb-description").textContent = kb.description;
   document.getElementById("settings-kb-code").textContent = kb.code;
   document.getElementById("settings-title").textContent = `${kb.name} · 设置`;
-  document.getElementById("basic-kb-name").textContent = kb.name;
+  document.getElementById("basic-kb-name").value = kb.name;
   document.getElementById("basic-kb-code").textContent = kb.code;
-  document.getElementById("basic-kb-description").textContent = kb.description;
+  document.getElementById("basic-kb-description").value = kb.description;
+  document.getElementById("kb-associated-app").textContent = APPS.find(item => AGENT_CONTEXT[item.id] === kb.id)?.name || "暂无数据";
+  document.querySelector(".settings-head").hidden = state.kbTab === "documents";
+  document.getElementById("btn-kb-files").classList.toggle("active", state.kbTab === "documents");
+  document.getElementById("btn-kb-settings").classList.toggle("active", state.kbTab !== "documents");
   document.getElementById("basic-kb-updated").textContent = formatDateTime(kbLastUpdated(kb.id));
   document.getElementById("files-last-updated").textContent = formatDateTime(kbLastUpdated(kb.id));
   document.getElementById("kb-locked-name").textContent = kb.name;
@@ -401,6 +417,9 @@ function renderKbSettings() {
     input.checked = input.value === visibility;
   });
   const fileMode = state.fileMode[kb.id] || "manual";
+  document.getElementById("file-update-empty").hidden = Boolean(state.fileConfigured[kb.id]);
+  document.getElementById("file-update-form").hidden = !state.fileConfigured[kb.id];
+  document.getElementById("file-path").value = state.fileConfigured[kb.id]?.path || "";
   document.querySelectorAll('input[name="file-update"]').forEach((input) => {
     input.checked = input.value === fileMode;
   });
@@ -888,27 +907,28 @@ function commitTerm() {
 }
 
 /* ——— 专业 Agent ——— */
+function renderAgentList() {
+  const keyword = normalizeText(state.agentSearch);
+  const agents = APPS.filter(item => normalizeText(item.name + AGENT_DESCRIPTIONS[item.id]).includes(keyword));
+  document.getElementById("agent-list").innerHTML = agents.map(item => `
+    <button class="agent-card" type="button" data-agent-id="${item.id}">
+      <span class="resource-card-header"><img class="agent-card-icon" src="assets/agent.svg" alt="" /><span class="resource-card-title"><strong>${escapeHtml(item.name)}</strong><small>创建者：演示用户</small></span><span class="agent-running">运行中</span></span>
+      <span class="agent-card-description">${escapeHtml(AGENT_DESCRIPTIONS[item.id])}</span>
+      <span class="resource-card-footer"><span>受限</span><span>···</span></span>
+    </button>`).join("");
+  document.getElementById("agent-list-empty").hidden = agents.length > 0;
+}
+
 function renderAgent() {
   const agent = currentAgent();
   const kb = KNOWLEDGE_BASES.find((item) => item.id === AGENT_CONTEXT[agent.id]) || KNOWLEDGE_BASES[0];
   const canWrite = permissions().canWriteAgent;
 
-  document.getElementById("agent-list").innerHTML = APPS.map((item) => {
-    const enabled = state.switches.black[item.id] !== false;
-    return `
-      <button class="agent-item ${item.id === agent.id ? "active" : ""}" type="button" data-agent-id="${item.id}" aria-pressed="${item.id === agent.id}">
-        <span class="agent-avatar" aria-hidden="true">${escapeHtml(item.name.slice(0, 1))}</span>
-        <span>
-          <strong>${escapeHtml(item.name)}</strong>
-          <small>黑话增强 ${enabled ? "已开启" : "已关闭"}</small>
-        </span>
-      </button>`;
-  }).join("");
-
   document.getElementById("agent-title").textContent = agent.name;
+  document.getElementById("preview-agent-name").textContent = agent.name;
   document.getElementById("agent-description").textContent = AGENT_DESCRIPTIONS[agent.id];
-  document.getElementById("agent-basic-name").textContent = agent.name;
-  document.getElementById("agent-basic-description").textContent = AGENT_DESCRIPTIONS[agent.id];
+  document.getElementById("agent-basic-name").value = agent.name;
+  document.getElementById("agent-basic-description").value = AGENT_DESCRIPTIONS[agent.id];
   document.getElementById("agent-kb-name").textContent = kb.name;
   document.getElementById("agent-kb-code").textContent = kb.code;
   document.getElementById("agent-kb-description").textContent = kb.description;
@@ -1270,6 +1290,58 @@ function bindEvents() {
     state.kbSearch = event.target.value;
     renderKbList();
   });
+  document.querySelectorAll("[data-kb-visibility]").forEach(button => {
+    button.addEventListener("click", () => {
+      state.kbVisibilityFilter = button.dataset.kbVisibility;
+      document.querySelectorAll("[data-kb-visibility]").forEach(item => item.classList.toggle("active", item === button));
+      renderKbList();
+    });
+  });
+  document.getElementById("kb-list-tbody").addEventListener("keydown", event => {
+    if (event.key === "Enter" && event.target.matches(".knowledge-card")) openKbSettings(event.target.dataset.openKb);
+  });
+  document.getElementById("btn-kb-files").addEventListener("click", () => { state.kbTab = "documents"; renderKbSettings(); });
+  document.getElementById("btn-kb-settings").addEventListener("click", () => { state.kbTab = "basic"; renderKbSettings(); });
+  document.getElementById("btn-reset-kb-basic").addEventListener("click", renderKbSettings);
+  document.getElementById("btn-save-kb-basic").addEventListener("click", () => {
+    if (!permissions().canWriteKb) return;
+    const name = document.getElementById("basic-kb-name").value.trim();
+    if (!name || /\s/.test(name)) { toast("知识库名称不能为空或包含空格", "error"); return; }
+    currentKb().name = name;
+    currentKb().description = document.getElementById("basic-kb-description").value.trim();
+    saveState();
+    renderKbSettings();
+    toast("已保存");
+  });
+  document.getElementById("btn-configure-file-update").addEventListener("click", () => {
+    document.getElementById("file-update-empty").hidden = true;
+    document.getElementById("file-update-form").hidden = false;
+  });
+  document.getElementById("btn-reset-file-rule").addEventListener("click", () => {
+    document.getElementById("file-path").value = "";
+    document.querySelector('input[name="file-update"][value="manual"]').checked = true;
+  });
+  document.querySelectorAll('input[name="kb-visibility"]').forEach(input => input.addEventListener("change", () => {
+    document.getElementById("btn-save-visibility").click();
+  }));
+  document.querySelectorAll("[data-demo-message]").forEach(button => button.addEventListener("click", () => toast(`${button.dataset.demoMessage}仅展示现网入口，本演示聚焦黑话配置`, "info")));
+  document.getElementById("btn-create-kb").addEventListener("click", () => toast("创建入口沿用现网，本演示可配置现有知识库", "info"));
+  for (const context of ["kb", "agent"]) {
+    document.getElementById(`btn-${context}-add-member`).addEventListener("click", () => {
+      state.memberContext = context;
+      document.getElementById("member-error").classList.remove("show");
+      openModal("modal-member");
+    });
+  }
+  document.getElementById("btn-member-confirm").addEventListener("click", () => {
+    const account = document.getElementById("member-account").value;
+    const role = document.getElementById("member-role").value;
+    const allowed = state.memberContext === "kb" ? permissions().canWriteKb : permissions().canWriteAgent;
+    if (!allowed) { toast("当前身份无修改权限", "error"); return; }
+    if (!account || !role) { document.getElementById("member-error").classList.add("show"); return; }
+    closeModal("modal-member");
+    toast("已添加演示成员，权限演示可在用户菜单中切换");
+  });
   document.getElementById("kb-list-tbody").addEventListener("click", (event) => {
     const button = event.target.closest("[data-open-kb]");
     if (button) openKbSettings(button.dataset.openKb, "basic");
@@ -1297,6 +1369,7 @@ function bindEvents() {
   document.getElementById("btn-save-file-rule").addEventListener("click", () => {
     if (!permissions().canWriteKb) return;
     state.fileMode[state.currentKbId] = document.querySelector('input[name="file-update"]:checked')?.value || "manual";
+    state.fileConfigured[state.currentKbId] = { path: document.getElementById("file-path").value.trim() };
     saveState();
     toast("文件更新设置已保存");
   });
@@ -1460,7 +1533,20 @@ function bindEvents() {
     const button = event.target.closest("[data-agent-id]");
     if (!button) return;
     state.agentId = button.dataset.agentId;
-    renderAgent();
+    state.agentTab = "basic";
+    setPage("agent");
+  });
+  document.getElementById("agent-search").addEventListener("input", event => { state.agentSearch = event.target.value; renderAgentList(); });
+  document.getElementById("btn-back-agent-list").addEventListener("click", () => setPage("agent-list"));
+  document.getElementById("btn-agent-cancel").addEventListener("click", () => setPage("agent-list"));
+  document.getElementById("btn-agent-save").addEventListener("click", () => { saveState(); toast("已保存并更新"); });
+  document.getElementById("switch-scenario").addEventListener("click", event => {
+    const enabled = event.currentTarget.getAttribute("aria-checked") !== "true";
+    event.currentTarget.setAttribute("aria-checked", String(enabled));
+    event.currentTarget.classList.toggle("on", enabled);
+  });
+  document.getElementById("agent-intro").addEventListener("input", event => {
+    document.getElementById("preview-agent-intro").textContent = event.target.value || "产品介绍将会作为副标题在此处展示";
   });
   document.querySelectorAll("[data-agent-tab]").forEach((button) => {
     button.addEventListener("click", () => {
