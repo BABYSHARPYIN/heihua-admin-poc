@@ -6,8 +6,8 @@
   <meta name="description" content="智能问答平台 · 词条管理 POC" />
   <title>智能问答平台 · 词条管理 POC</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23141414'/%3E%3Cpath d='M16 5 7 10v11l9 5 9-5V10l-9-5Zm0 11 9-5m-9 5-9-5m9 5v11' fill='none' stroke='white' stroke-width='1.5'/%3E%3C/svg%3E" />
-  <link rel="stylesheet" href="style.css?v=20261119-delivery-multi" />
-  <link rel="stylesheet" href="live.css?v=20261119-delivery-multi" />
+  <link rel="stylesheet" href="style.css?v=20261119-records" />
+  <link rel="stylesheet" href="live.css?v=20261119-records" />
 </head>
 <body>
   <div class="app">
@@ -271,7 +271,7 @@
           <div class="panel flex-panel">
             <div class="toolbar">
               <label class="search-box" aria-label="搜索词条">
-                <input class="input" id="black-search" placeholder="搜索名称、别名、释义或属性" autocomplete="off" />
+                <input class="input" id="black-search" placeholder="搜索词条或释义" autocomplete="off" />
                 <span class="search-ico" aria-hidden="true"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></span>
               </label>
               <div class="scope-picker scope-filter" id="list-scope-picker"></div>
@@ -282,7 +282,6 @@
               </select>
               <span class="result-count" id="black-result-count"></span>
               <div class="toolbar-right">
-                <button class="btn" type="button" id="btn-black-audit">变更记录</button>
                 <button class="btn" type="button" id="btn-black-export">导出</button>
                 <button class="btn" type="button" id="btn-black-import" data-global-write>导入</button>
                 <button class="btn btn-primary" type="button" id="btn-black-add" data-global-write>新增</button>
@@ -292,13 +291,13 @@
               <table class="data">
                 <thead>
                   <tr>
-                    <th>词条名称</th>
-                    <th>别名</th>
+                    <th>词条</th>
                     <th>释义</th>
-                    <th>可扩展属性</th>
                     <th>应用范围</th>
                     <th>状态</th>
+                    <th>召回次数</th>
                     <th>更新时间</th>
+                    <th>操作人</th>
                     <th>操作</th>
                   </tr>
                 </thead>
@@ -335,27 +334,14 @@
         <form id="term-form" autocomplete="off">
           <input type="hidden" id="term-id" />
           <div class="form-row">
-            <label for="term-name">词条名称<span class="req">*</span></label>
-            <input class="input" id="term-name" maxlength="60" placeholder="例如：隔离开关" />
+            <div class="label-toolbar"><label for="term-name">词条<span class="req">*</span></label><button class="btn-link" type="button" id="btn-add-term">＋ 添加词条</button></div>
+            <div id="term-inputs"></div>
             <div class="field-error" id="err-term-name"></div>
-          </div>
-          <div class="form-row">
-            <label for="alias-input">别名<span class="hint">选填，可多个；输入后按 Enter 添加</span></label>
-            <div class="alias-editor" id="alias-editor">
-              <div id="alias-chips" style="display:contents"></div>
-              <input id="alias-input" placeholder="例如：刀闸" autocomplete="off" aria-label="添加别名" />
-            </div>
-            <div class="field-error" id="err-term-aliases"></div>
           </div>
           <div class="form-row">
             <label for="term-definition">释义<span class="req">*</span></label>
             <textarea class="textarea" id="term-definition" maxlength="500" placeholder="说明该词条的含义"></textarea>
             <div class="field-error" id="err-term-definition"></div>
-          </div>
-          <div class="form-row">
-            <div class="label-toolbar"><label>可扩展属性<span class="hint">选填，可多条</span></label><button class="btn-link" type="button" id="btn-add-attribute">＋ 添加属性</button></div>
-            <div id="term-attributes"></div>
-            <div class="field-error" id="err-term-attributes"></div>
           </div>
           <div class="form-row" id="scope-form-row">
             <label>应用范围<span class="req">*</span></label>
@@ -394,8 +380,8 @@
       </div>
       <div class="modal-body">
         <div class="import-note">
-          <div><strong>CSV 模板字段：</strong>词条名称、别名、释义、可扩展属性、应用范围、状态。</div>
-          <div class="mt-8">多个别名或应用范围以 <code>|</code> 分隔；应用范围填写全局或具体 Agent 名称。可扩展属性填写属性名与属性值的 JSON 数组。CSV 使用 UTF-8 编码。</div>
+          <div><strong>CSV 模板字段：</strong>词条、释义、应用范围、状态。</div>
+          <div class="mt-8">同一单元格中的多个词条以顿号分隔，导入后分别生成记录。多个应用范围以 <code>|</code> 分隔。CSV 使用 UTF-8 编码。</div>
         </div>
         <div class="import-toolbar">
           <button class="btn btn-sm" type="button" id="btn-download-template">下载 CSV 模板</button>
@@ -406,7 +392,7 @@
         </div>
         <div class="form-row">
           <label for="import-text">或粘贴 CSV 内容</label>
-          <textarea class="textarea import-textarea" id="import-text" placeholder="词条名称,别名,释义,可扩展属性,应用范围,状态"></textarea>
+          <textarea class="textarea import-textarea" id="import-text" placeholder="词条,释义,应用范围,状态"></textarea>
           <div class="field-error show" id="import-error" hidden></div>
         </div>
         <div class="import-preview" id="import-preview" hidden>
@@ -416,7 +402,7 @@
           </div>
           <div class="import-scroll">
             <table>
-              <thead><tr><th>行</th><th>词条名称 / 属性</th><th>应用范围</th><th>状态</th><th>校验</th></tr></thead>
+              <thead><tr><th>行</th><th>词条</th><th>应用范围</th><th>状态</th><th>校验</th></tr></thead>
               <tbody id="import-preview-body"></tbody>
             </table>
           </div>
@@ -471,6 +457,6 @@
 
   <div class="toast-wrap" id="toast-wrap" role="status" aria-live="polite"></div>
 
-  <script type="module" src="app.js?v=20261119-delivery-multi"></script>
+  <script type="module" src="app.js?v=20261119-records"></script>
 </body>
 </html>
