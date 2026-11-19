@@ -1,11 +1,11 @@
 import {
   APPS,
-  CSV_HEADERS,
   KNOWLEDGE_BASES,
   cleanText,
   entriesToCsv,
   formatDateTime,
   importRowsToEntries,
+  migrateEntry,
   normalizeAliases,
   normalizeText,
   paginate,
@@ -15,16 +15,16 @@ import {
   statusLabel,
   templateCsv,
   validateEntry,
-} from "./domain.mjs";
-import { INITIAL_ENTRIES } from "./data.mjs";
+} from "./domain.mjs?v=20261119-terms";
+import { INITIAL_ENTRIES } from "./data.mjs?v=20261119-terms";
 
-const STORAGE_KEY = "heihua-admin-poc-state-v1";
+const STORAGE_KEY = "heihua-admin-poc-state-v2";
+const LEGACY_STORAGE_KEY = "heihua-admin-poc-state-v1";
 const DEFAULT_VISIBILITY = { "kb-device": "restricted", "kb-safety": "restricted", "kb-service": "public" };
 const DEFAULT_KB_UPDATED = { "kb-device": "", "kb-safety": "", "kb-service": "2026-11-12T09:20:00+08:00" };
 const DEFAULT_FILE_MODE = { "kb-device": "manual", "kb-safety": "manual", "kb-service": "auto" };
 const IDENTITY_LABELS = {
-  full: "黑话管理 + 全局",
-  kb: "仅本库可写",
+  full: "词条管理 + 全局",
   view: "仅查看",
   none: "无权限",
 };
@@ -39,7 +39,6 @@ const AGENT_DESCRIPTIONS = {
   "app-service": "面向客户咨询、业务办理与投诉处理的专业 Agent。",
 };
 const GLOBAL_PAGE_SIZE = 8;
-const KB_PAGE_SIZE = 6;
 
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
@@ -70,33 +69,28 @@ const state = {
   fileConfigured: {},
   agentSearch: "",
   memberContext: "kb",
-  globalFilters: { keyword: "", scopeType: "all", status: "all", page: 1 },
-  kbFilters: { keyword: "", status: "all", page: 1 },
+  globalFilters: { keyword: "", scopeType: "all", scopeId: "", status: "all", page: 1 },
   term: null,
   import: null,
   confirmAction: null,
-  auditContext: "global",
-  importContext: "global",
-  importLockedKbId: null,
   importResult: null,
-  agentQuery: "CT 二次回路异常，先核对计量流变和刀闸位置",
   lastFocus: null,
 };
 
 function loadState() {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(STORAGE_KEY) || localStorage.getItem(LEGACY_STORAGE_KEY);
     if (!raw) return;
     const saved = JSON.parse(raw);
     if (Array.isArray(saved.entries)) {
-      state.entries = saved.entries.map((entry) => ({
-        ...entry,
-        aliases: normalizeAliases(entry.aliases || []),
-        status: entry.status === "disabled" ? "disabled" : "enabled",
-        scope: entry.scope?.type === "global" ? { type: "global" } : { type: entry.scope?.type || "global", id: entry.scope?.id },
-      }));
+      state.entries = saved.entries.map(migrateEntry).filter(Boolean);
     }
-    if (Array.isArray(saved.audit)) state.audit = saved.audit;
+    if (Array.isArray(saved.audit)) state.audit = saved.audit.map(log => {
+      const before = log.before ? migrateEntry(log.before) : null;
+      const after = log.after ? migrateEntry(log.after) : null;
+      const migrated = migrateEntry({ scope: log.scope });
+      return migrated ? { ...log, scope: migrated.scope, before, after } : null;
+    }).filter(Boolean);
     if (Array.isArray(saved.knowledgeBases)) {
       for (const kb of KNOWLEDGE_BASES) {
         const savedKb = saved.knowledgeBases.find(item => item.id === kb.id);
@@ -104,6 +98,7 @@ function loadState() {
       }
     }
     if (IDENTITY_LABELS[saved.identity]) state.identity = saved.identity;
+    else if (saved.identity === "kb") state.identity = "view";
     if (saved.visibility && typeof saved.visibility === "object") {
       state.visibility = { ...DEFAULT_VISIBILITY, ...saved.visibility };
     }
@@ -151,9 +146,9 @@ function saveState() {
 
 function permissions() {
   return {
-    canViewBlack: state.identity !== "none",
+    canViewTerms: state.identity !== "none",
     canWriteGlobal: state.identity === "full",
-    canWriteKb: state.identity === "full" || state.identity === "kb",
+    canWriteKb: state.identity === "full",
     canWriteAgent: state.identity === "full",
   };
 }
@@ -179,17 +174,29 @@ function byUpdatedDesc(a, b) {
   return new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime();
 }
 
-function scopeTag(scope, extraClass = "") {
-  const normalized = scope?.type || "global";
-  return `<span class="tag scope-tag scope-${normalized} ${extraClass}">${escapeHtml(scopeLabel(scope))}</span>`;
+function scopeCell(scope) {
+  return scope?.type === "global" ? "全局" : `<button class="btn-link scope-link" type="button" data-open-agent="${escapeHtml(scope.id)}">${escapeHtml(scopeLabel(scope))}</button>`;
 }
 
-function aliasTags(aliases) {
-  const list = normalizeAliases(aliases || []);
-  if (!list.length) return '<span class="muted">—</span>';
-  const visible = list.slice(0, 3).map((alias) => `<span class="tag">${escapeHtml(alias)}</span>`).join("");
-  const more = list.length > 3 ? `<span class="tag tag-plain" title="${escapeHtml(list.slice(3).join("、"))}">+${list.length - 3}</span>` : "";
-  return visible + more;
+function readAttributes() {
+  return [...document.querySelectorAll(".attribute-row")].map(row => ({
+    name: row.querySelector('[data-attribute="name"]').value,
+    value: row.querySelector('[data-attribute="value"]').value,
+  }));
+}
+
+function renderAttributes(attributes, readOnly = false) {
+  document.getElementById("term-attributes").innerHTML = attributes.map(item => `<div class="attribute-row"><input class="input" data-attribute="name" aria-label="属性名" placeholder="属性名" value="${escapeHtml(item.name)}" ${readOnly ? "readonly" : ""} /><input class="input" data-attribute="value" aria-label="属性值" placeholder="属性值" value="${escapeHtml(item.value)}" ${readOnly ? "readonly" : ""} />${readOnly ? "" : '<button class="btn-link danger" type="button" data-remove-attribute aria-label="删除属性">删除</button>'}</div>`).join("");
+  document.getElementById("btn-add-attribute").hidden = readOnly;
+}
+
+function renderRecall() {
+  const result = document.getElementById("recall-result");
+  const query = document.getElementById("recall-query").value.trim();
+  const appId = document.getElementById("recall-scope").value;
+  if (!query) { result.textContent = "请输入查询内容"; return; }
+  const hits = resolveTerms(query, state.entries, appId ? { appId } : {});
+  result.innerHTML = hits.length ? `<p>召回 ${hits.length} 条词条</p><table class="data recall-table"><thead><tr><th>命中内容</th><th>词条名称</th><th>释义 / 属性</th><th>应用范围</th></tr></thead><tbody>${hits.map(({ keyword, entry }) => `<tr><td>${escapeHtml(keyword)}</td><td>${escapeHtml(entry.name)}</td><td>${escapeHtml(entry.definition)}<div class="muted">${escapeHtml(entry.attributes.map(item => item.name + "：" + item.value).join("；"))}</div></td><td>${scopeCell(entry.scope)}</td></tr>`).join("")}</tbody></table>` : '<div class="empty-state">未召回匹配的启用词条</div>';
 }
 
 function statusBadge(status) {
@@ -250,15 +257,10 @@ function openConfirm({ title, textHtml, extraHtml = "", confirmText = "确定", 
 
 function applyPermissions() {
   const perms = permissions();
-  const navBlack = document.getElementById("nav-blacktalk");
-  const tabBlack = document.getElementById("kb-tab-blacktalk");
-  navBlack.hidden = !perms.canViewBlack;
-  tabBlack.hidden = !perms.canViewBlack;
+  const navBlack = document.getElementById("nav-terms");
+  navBlack.hidden = !perms.canViewTerms;
   document.querySelectorAll("[data-global-write]").forEach((node) => {
     node.hidden = !perms.canWriteGlobal;
-  });
-  document.querySelectorAll("[data-kb-write]").forEach((node) => {
-    node.hidden = !perms.canWriteKb;
   });
   document.querySelectorAll("[data-kb-settings-write]").forEach((node) => {
     node.disabled = !perms.canWriteKb;
@@ -267,9 +269,7 @@ function applyPermissions() {
   document.querySelectorAll(".switch").forEach((node) => {
     node.disabled = !perms.canWriteAgent;
   });
-  if (!perms.canViewBlack && state.kbTab === "blacktalk") {
-    state.kbTab = "basic";
-  }
+
 }
 
 function updateBreadcrumb() {
@@ -282,15 +282,15 @@ function updateBreadcrumb() {
   } else if (state.currentPage === "agent" || state.currentPage === "agent-list") {
     html = '<span>专业 Agent</span><span class="sep">/</span><span class="current">Agent配置</span>';
   } else {
-    html = '<span class="current">黑话管理</span>';
+    html = '<span class="current">词条管理</span>';
   }
   breadcrumb.innerHTML = html;
 }
 
 function setPage(page, options = {}) {
   const perms = permissions();
-  if (page === "blacktalk" && !perms.canViewBlack) {
-    toast("当前身份无黑话查看权限", "error");
+  if (page === "terms" && !perms.canViewTerms) {
+    toast("当前身份无词条查看权限", "error");
     return;
   }
   state.currentPage = page;
@@ -309,7 +309,7 @@ function renderCurrentPage() {
   else if (state.currentPage === "kb-settings") renderKbSettings();
   else if (state.currentPage === "agent") renderAgent();
   else if (state.currentPage === "agent-list") renderAgentList();
-  else if (state.currentPage === "blacktalk") renderBlackTable();
+  else if (state.currentPage === "terms") renderBlackTable();
 }
 
 function renderPager(container, page, pages, onChange) {
@@ -339,11 +339,7 @@ function renderKbList() {
     if (!keyword) return true;
     return [kb.name, kb.code, kb.description].map(normalizeText).join("\n").includes(keyword);
   }).map((kb) => {
-    const terms = state.entries.filter((entry) => entry.scope?.type === "kb" && entry.scope.id === kb.id);
-    const updated = terms.length
-      ? terms.map((entry) => entry.updatedAt).sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0]
-      : DEFAULT_KB_UPDATED[kb.id];
-    return { ...kb, termCount: terms.length, updatedAt: updated };
+    return { ...kb, updatedAt: DEFAULT_KB_UPDATED[kb.id] };
   });
 
   const tbody = document.getElementById("kb-list-tbody");
@@ -361,30 +357,25 @@ function renderKbList() {
 
   document.getElementById("kb-list-empty").hidden = rows.length > 0;
   document.getElementById("kb-list-count").innerHTML = `共 <strong>${rows.length}</strong> 个知识库`;
-  document.getElementById("kb-list-footer-count").textContent = `共 ${rows.length} 个知识库 · 黑话词条 ${state.entries.length} 条`;
-  document.getElementById("kb-list-meta").textContent = "子范围优先于全局";
+  document.getElementById("kb-list-footer-count").textContent = `共 ${rows.length} 个知识库`;
+  document.getElementById("kb-list-meta").textContent = "";
 }
 
 function openKbSettings(kbId, tab = "basic") {
   state.currentKbId = kbId;
   state.kbTab = tab;
-  state.kbFilters = { keyword: "", status: "all", page: 1 };
-  if (tab === "blacktalk" && !permissions().canViewBlack) state.kbTab = "basic";
   saveState();
   setPage("kb-settings");
 }
 
 function kbLastUpdated(kbId) {
-  const terms = state.entries.filter((entry) => entry.scope?.type === "kb" && entry.scope.id === kbId);
-  const latest = terms.map((entry) => entry.updatedAt).sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0];
-  return latest || DEFAULT_KB_UPDATED[kbId];
+  return DEFAULT_KB_UPDATED[kbId];
 }
 
 /* ——— 知识库设置 ——— */
 function renderKbSettings() {
   const kb = currentKb();
   const perms = permissions();
-  if (state.kbTab === "blacktalk" && !perms.canViewBlack) state.kbTab = "basic";
 
   document.getElementById("settings-kb-name").textContent = kb.name;
   document.getElementById("settings-kb-description").textContent = kb.description;
@@ -399,14 +390,11 @@ function renderKbSettings() {
   document.getElementById("btn-kb-settings").classList.toggle("active", state.kbTab !== "documents");
   document.getElementById("basic-kb-updated").textContent = formatDateTime(kbLastUpdated(kb.id));
   document.getElementById("files-last-updated").textContent = formatDateTime(kbLastUpdated(kb.id));
-  document.getElementById("kb-locked-name").textContent = kb.name;
-  document.getElementById("scope-locked-name").textContent = kb.name;
 
   document.querySelectorAll("[data-kb-tab]").forEach((button) => {
     const active = button.dataset.kbTab === state.kbTab;
     button.classList.toggle("active", active);
     button.setAttribute("aria-selected", active ? "true" : "false");
-    button.hidden = button.dataset.kbTab === "blacktalk" && !perms.canViewBlack;
   });
   document.querySelectorAll(".kb-tab-panel").forEach((panel) => {
     panel.classList.toggle("active", panel.id === `kb-panel-${state.kbTab}`);
@@ -428,50 +416,9 @@ function renderKbSettings() {
     button.title = perms.canWriteKb ? "" : "当前身份无知识库设置写权限";
   });
 
-  if (state.kbTab === "blacktalk") renderKbBlackTable();
 }
 
-function renderKbBlackTable() {
-  const kb = currentKb();
-  const perms = permissions();
-  const scoped = state.entries
-    .filter((entry) => entry.scope?.type === "kb" && entry.scope.id === kb.id)
-    .sort(byUpdatedDesc);
-  const filtered = searchEntries(scoped, { keyword: state.kbFilters.keyword, status: state.kbFilters.status });
-  const paged = paginate(filtered, state.kbFilters.page, KB_PAGE_SIZE);
-  state.kbFilters.page = paged.page;
-  const tbody = document.getElementById("kb-black-tbody");
-
-  tbody.innerHTML = paged.items
-    .map(
-      (entry) => `
-      <tr>
-        <td>
-          <div class="cell-main">${escapeHtml(entry.name)}</div>
-          <div class="cell-sub">${escapeHtml(entry.code)}</div>
-        </td>
-        <td>${aliasTags(entry.aliases)}</td>
-        <td><div class="definition-cell truncate-2" title="${escapeHtml(entry.definition)}">${escapeHtml(entry.definition)}</div></td>
-        <td>${statusBadge(entry.status)}</td>
-        <td class="nowrap">${escapeHtml(formatDateTime(entry.updatedAt))}</td>
-        <td class="action-cell">${termActions(entry, "kb")}</td>
-      </tr>`,
-    )
-    .join("");
-
-  document.getElementById("kb-black-empty").hidden = paged.items.length > 0;
-  document.getElementById("kb-black-count").innerHTML = `共 <strong>${paged.total}</strong> 条`;
-  document.getElementById("kb-black-footer-count").textContent = `第 ${paged.page} / ${paged.pages} 页 · 每页 ${KB_PAGE_SIZE} 条`;
-  document.querySelectorAll("[data-kb-write]").forEach((node) => {
-    node.hidden = !perms.canWriteKb;
-  });
-  renderPager(document.getElementById("kb-black-pager"), paged.page, paged.pages, (page) => {
-    state.kbFilters.page = page;
-    renderKbBlackTable();
-  });
-}
-
-/* ——— 全局黑话列表 ——— */
+/* ——— 词条列表 ——— */
 function renderBlackTable() {
   const filtered = searchEntries(state.entries, state.globalFilters).sort(byUpdatedDesc);
   const paged = paginate(filtered, state.globalFilters.page, GLOBAL_PAGE_SIZE);
@@ -484,11 +431,11 @@ function renderBlackTable() {
       <tr>
         <td>
           <div class="cell-main">${escapeHtml(entry.name)}</div>
-          <div class="cell-sub">${escapeHtml(entry.code)}</div>
         </td>
-        <td>${aliasTags(entry.aliases)}</td>
+        <td>${escapeHtml(normalizeAliases(entry.aliases).join("、") || "—")}</td>
         <td><div class="definition-cell truncate-2" title="${escapeHtml(entry.definition)}">${escapeHtml(entry.definition)}</div></td>
-        <td>${scopeTag(entry.scope)}</td>
+        <td>${escapeHtml((entry.attributes || []).map(item => `${item.name}：${item.value}`).join("；") || "—")}</td>
+        <td>${scopeCell(entry.scope)}</td>
         <td>${statusBadge(entry.status)}</td>
         <td class="nowrap">${escapeHtml(formatDateTime(entry.updatedAt))}</td>
         <td class="action-cell">${termActions(entry, "global")}</td>
@@ -499,10 +446,10 @@ function renderBlackTable() {
   document.getElementById("black-empty").hidden = paged.items.length > 0;
   document.getElementById("black-result-count").innerHTML = `共 <strong>${paged.total}</strong> 条`;
   document.getElementById("black-footer-count").textContent = `第 ${paged.page} / ${paged.pages} 页 · 每页 ${GLOBAL_PAGE_SIZE} 条`;
-  document.getElementById("black-scope-note").textContent = "子范围优先于全局";
-  const counts = { global: 0, app: 0, kb: 0 };
+  document.getElementById("black-scope-note").textContent = "指定 Agent 优先于全局";
+  const counts = { global: 0, app: 0 };
   for (const entry of state.entries) counts[entry.scope?.type || "global"] += 1;
-  document.getElementById("blacktalk-meta").textContent = `全局 ${counts.global} · 应用 ${counts.app} · 知识库 ${counts.kb}`;
+  document.getElementById("terms-meta").textContent = `全局 ${counts.global} · 指定 Agent ${counts.app}`;
   document.querySelectorAll("[data-global-write]").forEach((node) => {
     node.hidden = !permissions().canWriteGlobal;
   });
@@ -514,7 +461,7 @@ function renderBlackTable() {
 
 function termActions(entry, context) {
   const perms = permissions();
-  const writable = context === "global" ? perms.canWriteGlobal : perms.canWriteKb;
+  const writable = perms.canWriteGlobal;
   if (!writable) {
     return `<button class="btn-link" type="button" data-term-action="view" data-term-id="${entry.id}">查看</button>`;
   }
@@ -566,9 +513,8 @@ function handleTermAction(action, termId) {
   const entry = state.entries.find((item) => item.id === termId);
   if (!entry) return;
   const perms = permissions();
-  const inKbTab = state.currentPage === "kb-settings" && state.kbTab === "blacktalk";
-  const source = inKbTab ? "kb" : "global";
-  const canWrite = inKbTab ? perms.canWriteKb : perms.canWriteGlobal;
+  const source = "global";
+  const canWrite = perms.canWriteGlobal;
   if (action === "view" || !canWrite) {
     openTermEditor({ id: entry.id, readOnly: true, source });
     return;
@@ -619,7 +565,7 @@ function handleTermAction(action, termId) {
 /* ——— 词条抽屉 ——— */
 function populateScopeTarget(type, selectedId = "") {
   const target = document.getElementById("term-scope-target");
-  const pool = type === "app" ? APPS : type === "kb" ? KNOWLEDGE_BASES : [];
+  const pool = type === "app" ? APPS : [];
   target.hidden = type === "global";
   target.innerHTML = pool.map((item) => `<option value="${item.id}">${escapeHtml(item.name)}</option>`).join("");
   if (pool.length) target.value = pool.some((item) => item.id === selectedId) ? selectedId : pool[0].id;
@@ -656,7 +602,7 @@ function addAliasFromInput() {
 }
 
 function clearTermFieldErrors() {
-  for (const field of ["name", "code", "aliases", "definition", "scope", "status"]) {
+  for (const field of ["name", "attributes", "aliases", "definition", "scope", "status"]) {
     const error = document.getElementById(`err-term-${field}`);
     if (error) {
       error.textContent = "";
@@ -683,18 +629,12 @@ function setTermFieldError(field, message) {
 }
 
 function getTermCandidate() {
-  const lockedKbId = state.term?.lockedKbId;
-  const type = lockedKbId ? "kb" : document.getElementById("term-scope-type").value;
-  let scope = { type: "global" };
-  if (lockedKbId) {
-    scope = { type: "kb", id: lockedKbId };
-  } else if (type !== "global") {
-    scope = { type, id: document.getElementById("term-scope-target").value };
-  }
+  const type = document.getElementById("term-scope-type").value;
+  const scope = type === "global" ? { type: "global" } : { type, id: document.getElementById("term-scope-target").value };
   return {
     id: state.term?.id || "draft-term",
     name: document.getElementById("term-name").value,
-    code: document.getElementById("term-code").value,
+    attributes: readAttributes(),
     aliases: state.term?.aliases || [],
     definition: document.getElementById("term-definition").value,
     scope,
@@ -707,11 +647,10 @@ function refreshTermPreview() {
   const candidate = getTermCandidate();
   const aliases = normalizeAliases(candidate.aliases);
   const name = cleanText(candidate.name);
-  const code = cleanText(candidate.code);
   document.getElementById("preview-aliases").textContent = aliases.length
     ? aliases.map((alias) => `「${alias}」`).join(" ")
     : "未设置别名";
-  document.getElementById("preview-result").textContent = name || code ? `${name || "（未填规范名）"}（${code || "（未填规范编码）"}）` : "填写规范名和规范编码后显示";
+  document.getElementById("preview-result").textContent = name || "填写词条名称后显示";
   const scopeText =
     candidate.scope.type === "global"
       ? "全局"
@@ -726,8 +665,7 @@ function refreshTermPreview() {
 function canOpenConflictEntry(termId) {
   const entry = state.entries.find((item) => item.id === termId);
   if (!entry) return false;
-  if (!state.term?.lockedKbId) return true;
-  return entry.scope?.type === "kb" && entry.scope.id === state.term.lockedKbId;
+  return true;
 }
 
 function renderTermConflicts(validation) {
@@ -760,10 +698,8 @@ function renderTermConflicts(validation) {
 function refreshTermValidation({ showErrors = false } = {}) {
   if (!state.term) return null;
   const candidate = getTermCandidate();
-  const validation = validateEntry(candidate, state.entries, {
-    kbLockedId: state.term.lockedKbId || undefined,
-  });
-  if (showErrors) {
+  const validation = validateEntry(candidate, state.entries);
+  if (showErrors || document.querySelector("#term-form .field-error.show")) {
     clearTermFieldErrors();
     for (const [field, message] of Object.entries(validation.errors)) setTermFieldError(field, message);
   }
@@ -780,21 +716,17 @@ function refreshTermValidation({ showErrors = false } = {}) {
   return validation;
 }
 
-function openTermEditor({ id = null, lockedKbId = null, readOnly = false, source = "global" } = {}) {
+function openTermEditor({ id = null, readOnly = false, source = "global" } = {}) {
   const entry = id ? state.entries.find((item) => item.id === id) : null;
   if (id && !entry) {
     toast("未找到该词条", "error");
     return;
   }
-  if (readOnly && !permissions().canViewBlack) return;
+  if (readOnly && !permissions().canViewTerms) return;
 
-  const inferredLocked =
-    lockedKbId ||
-    (source === "kb" || (state.currentPage === "kb-settings" && state.kbTab === "blacktalk") ? state.currentKbId : null);
   state.term = {
     id: entry?.id || null,
     aliases: entry ? normalizeAliases(entry.aliases) : [],
-    lockedKbId: inferredLocked,
     readOnly,
     source,
   };
@@ -805,31 +737,20 @@ function openTermEditor({ id = null, lockedKbId = null, readOnly = false, source
     : "保存后立即生效，无审核环节";
   document.getElementById("term-id").value = entry?.id || "";
   document.getElementById("term-name").value = entry?.name || "";
-  document.getElementById("term-code").value = entry?.code || "";
+  renderAttributes(entry?.attributes || [], readOnly);
   document.getElementById("term-definition").value = entry?.definition || "";
   document.getElementById("alias-input").value = "";
   for (const radio of document.querySelectorAll('input[name="term-status"]')) {
     radio.checked = radio.value === (entry?.status || "enabled");
   }
 
-  const editor = document.getElementById("scope-editor");
-  const lockedBox = document.getElementById("scope-locked-box");
-  if (inferredLocked) {
-    editor.hidden = true;
-    lockedBox.hidden = false;
-    document.getElementById("scope-locked-name").textContent = currentKb().name;
-  } else {
-    editor.hidden = false;
-    lockedBox.hidden = true;
-    const type = entry?.scope?.type || "global";
-    document.getElementById("term-scope-type").value = type;
-    populateScopeTarget(type, entry?.scope?.id || "");
-  }
+  const type = entry?.scope?.type || "global";
+  document.getElementById("term-scope-type").value = type;
+  populateScopeTarget(type, entry?.scope?.id || "");
 
   const drawer = document.querySelector("#modal-term .drawer");
   drawer.classList.toggle("drawer-readonly", readOnly);
   document.getElementById("term-name").readOnly = readOnly;
-  document.getElementById("term-code").readOnly = readOnly;
   document.getElementById("term-definition").readOnly = readOnly;
   document.getElementById("alias-input").disabled = readOnly;
   document.getElementById("alias-input").placeholder = readOnly ? "只读" : "例如：刀闸";
@@ -853,14 +774,14 @@ function openTermEditor({ id = null, lockedKbId = null, readOnly = false, source
 }
 
 function commitTerm() {
-  if (!state.term || state.term.readOnly) return;
+  if (!state.term || state.term.readOnly || !permissions().canWriteGlobal) return;
   addAliasFromInput();
   const validation = refreshTermValidation({ showErrors: true });
   if (!validation.valid) {
     if (validation.conflicts.length) {
       toast("请先处理别名或重复词条冲突", "error");
     } else {
-      const first = ["name", "code", "definition", "scope", "status"].find((field) => validation.errors[field]);
+      const first = ["name", "attributes", "definition", "scope", "status"].find((field) => validation.errors[field]);
       if (first === "aliases") document.getElementById("alias-input").focus();
       else document.getElementById(first === "scope" ? "term-scope-type" : `term-${first}`)?.focus();
     }
@@ -921,7 +842,6 @@ function renderAgentList() {
 
 function renderAgent() {
   const agent = currentAgent();
-  const kb = KNOWLEDGE_BASES.find((item) => item.id === AGENT_CONTEXT[agent.id]) || KNOWLEDGE_BASES[0];
   const canWrite = permissions().canWriteAgent;
 
   document.getElementById("agent-title").textContent = agent.name;
@@ -929,10 +849,6 @@ function renderAgent() {
   document.getElementById("agent-description").textContent = AGENT_DESCRIPTIONS[agent.id];
   document.getElementById("agent-basic-name").value = agent.name;
   document.getElementById("agent-basic-description").value = AGENT_DESCRIPTIONS[agent.id];
-  document.getElementById("agent-kb-name").textContent = kb.name;
-  document.getElementById("agent-kb-code").textContent = kb.code;
-  document.getElementById("agent-kb-description").textContent = kb.description;
-  document.getElementById("agent-context-tag").textContent = `关联：${kb.name}`;
 
   const switchMap = {
     followup: "switch-followup",
@@ -947,9 +863,6 @@ function renderAgent() {
     button.disabled = !canWrite;
     button.title = canWrite ? "" : "当前身份无 Agent 配置写权限";
   }
-  document.getElementById("agent-kb-black-state").textContent = state.switches.black[agent.id]
-    ? "已开启，按作用范围解析黑话"
-    : "已关闭，不调用黑话解析";
   const writeNote = document.getElementById("agent-write-note");
   writeNote.hidden = canWrite;
   writeNote.textContent = "当前身份无 Agent 配置写权限，开关仅展示当前配置。";
@@ -963,42 +876,6 @@ function renderAgent() {
     panel.classList.toggle("active", panel.id === `agent-panel-${state.agentTab}`);
   });
 
-  document.getElementById("demo-query").value = state.agentQuery;
-  if (state.agentTab === "effect") renderAgentDemo();
-}
-
-function renderAgentDemo() {
-  const result = document.getElementById("demo-result");
-  const agent = currentAgent();
-  if (!state.switches.black[agent.id]) {
-    result.innerHTML = '<div class="demo-off"><strong>黑话增强已关闭。</strong> 该应用不会调用黑话解析，用户原话会直接进入后续问答链路。</div>';
-    return;
-  }
-
-  const query = state.agentQuery.trim();
-  if (!query) {
-    result.innerHTML = '<span class="muted">输入问法后点击「试解析」。</span>';
-    return;
-  }
-  const hits = resolveTerms(query, state.entries, {
-    appId: agent.id,
-    kbId: AGENT_CONTEXT[agent.id],
-  });
-  if (!hits.length) {
-    result.innerHTML = '<span class="muted">未命中已启用的黑话词条，原文保持不变。</span>';
-    return;
-  }
-
-  result.innerHTML = `
-    <div>识别到 <strong>${hits.length}</strong> 个词条，按子范围优先解析：</div>
-    <div class="mt-8">${hits.map(({ keyword, entry, specificity }) => `
-      <div class="demo-hit">
-        <span class="tag">${escapeHtml(keyword)}</span>
-        <span class="muted">→</span>
-        <strong>${escapeHtml(entry.name)}</strong>
-        <span class="mono muted">${escapeHtml(entry.code)}</span>
-        <span class="tag ${specificity === 3 ? "tag-orange" : specificity === 2 ? "tag-blue" : "tag-purple"}">${escapeHtml(scopeLabel(entry.scope))}</span>
-      </div>`).join("")}</div>`;
 }
 
 /* ——— 导入 / 导出 ——— */
@@ -1030,7 +907,7 @@ function exportEntries(entries, filenamePrefix) {
 }
 
 function downloadTemplate() {
-  downloadText("黑话词条导入模板.csv", `\uFEFF${templateCsv()}`);
+  downloadText("词条导入模板.csv", `\uFEFF${templateCsv()}`);
   toast("CSV 模板已下载");
 }
 
@@ -1047,29 +924,22 @@ function resetImportPreview() {
   error.textContent = "";
 }
 
-function openImport({ context = "global", lockedKbId = null } = {}) {
+function openImport() {
   const perms = permissions();
-  if (context === "kb" ? !perms.canWriteKb : !perms.canWriteGlobal) {
+  if (!perms.canWriteGlobal) {
     toast("当前身份无导入权限", "error");
     return;
   }
-  state.importContext = context;
-  state.importLockedKbId = lockedKbId;
   document.getElementById("import-text").value = "";
   document.getElementById("import-file").value = "";
   const scopeNote = document.getElementById("import-scope-note");
-  scopeNote.innerHTML = lockedKbId
-    ? `当前从知识库页签导入，所有数据行必须填写「指定知识库 / ${escapeHtml(currentKb().name)}」，越出当前库的行将被拒绝。`
-    : "全局黑话管理支持导入全局、指定应用和指定知识库范围的词条；规范编码在整个平台内不可重复。";
+  scopeNote.textContent = "作用范围仅支持全局或指定 Agent；属性以属性名和值成对存储。";
   resetImportPreview();
   openModal("modal-import");
 }
 
 function importSampleForScope() {
-  if (state.importLockedKbId) {
-    return `${CSV_HEADERS.join(",")}\n端子箱受潮,EQ-TB-022,端子受潮|箱体凝露,接线端子箱内部出现凝露或进水，可能引起二次回路绝缘下降。,指定知识库,${currentKb().name},启用`;
-  }
-  return `${CSV_HEADERS.join(",")}\n油色谱异常,OPS-OIL-021,油色|油色谱超标,通过油中溶解气体分析发现设备内部过热或放电等异常。,全局,,启用`;
+  return entriesToCsv([{ name: "油色谱异常", aliases: ["油色", "油色谱超标"], definition: "油中溶解气体分析发现的设备异常。", attributes: [{ name: "分类", value: "运维" }], scope: { type: "global" }, status: "enabled" }]);
 }
 
 function previewImport() {
@@ -1086,7 +956,6 @@ function previewImport() {
   try {
     parsed = importRowsToEntries(text, {
       entries: state.entries,
-      kbLockedId: state.importLockedKbId || undefined,
     });
   } catch (error) {
     errorBox.textContent = `解析失败：${error.message}`;
@@ -1111,7 +980,7 @@ function previewImport() {
   document.getElementById("import-preview-body").innerHTML = parsed.rows.map((row) => `
     <tr class="${row.valid ? "" : "row-invalid"}">
       <td class="mono">${row.line}</td>
-      <td><div class="cell-main">${escapeHtml(row.candidate.name || "—")}</div><div class="cell-sub">${escapeHtml(row.candidate.code || "—")}</div></td>
+      <td><div class="cell-main">${escapeHtml(row.candidate.name || "—")}</div><div class="cell-sub">${escapeHtml((row.candidate.attributes || []).map(item => `${item.name}：${item.value}`).join("；") || "—")}</div></td>
       <td class="nowrap">${escapeHtml(scopeLabel(row.candidate.scope))}</td>
       <td class="nowrap">${escapeHtml(statusLabel(row.candidate.status))}</td>
       <td>${row.valid ? '<span class="import-status ok">通过</span>' : `<div class="import-errors">${row.errors.map(escapeHtml).join("<br>")}</div>`}</td>
@@ -1127,7 +996,7 @@ function previewImport() {
 function confirmImport() {
   const parsed = state.importResult;
   if (!parsed?.allValid) return;
-  const canWrite = state.importLockedKbId ? permissions().canWriteKb : permissions().canWriteGlobal;
+  const canWrite = permissions().canWriteGlobal;
   if (!canWrite) {
     toast("当前身份无导入权限", "error");
     return;
@@ -1158,25 +1027,17 @@ function confirmImport() {
 }
 
 /* ——— 变更记录 ——— */
-function auditInContext(log) {
-  if (state.auditContext === "global") return true;
-  return log.scope?.type === "kb" && log.scope.id === state.currentKbId;
-}
-
 function canRollback(log) {
   const perms = permissions();
   if (state.audit[0]?.id !== log.id || log.action === "回滚" || !log.termId) return false;
   if (state.identity === "full") return true;
-  if (state.identity === "kb") return log.scope?.type === "kb" && log.scope.id === state.currentKbId;
   return false;
 }
 
 function renderAudit() {
-  const logs = state.audit.filter(auditInContext);
+  const logs = state.audit;
   const content = document.getElementById("audit-content");
-  document.getElementById("audit-title").textContent = state.auditContext === "kb"
-    ? `变更记录 · ${currentKb().name}`
-    : "变更记录";
+  document.getElementById("audit-title").textContent = "变更记录";
   if (!logs.length) {
     content.innerHTML = `
       <div class="empty-state">
@@ -1205,8 +1066,7 @@ function renderAudit() {
     <p class="form-hint mt-12">仅最近一次变更可回滚；回滚会恢复该词条的上一版本，并新增一条回滚记录。</p>`;
 }
 
-function openAudit(context = "global") {
-  state.auditContext = context;
+function openAudit() {
   renderAudit();
   openModal("modal-audit");
 }
@@ -1252,7 +1112,7 @@ function rollbackAudit(logId) {
 /* ——— 事件绑定与初始化 ——— */
 function updateIdentity(identity) {
   state.identity = identity;
-  if (!permissions().canViewBlack && state.currentPage === "blacktalk") {
+  if (!permissions().canViewTerms && state.currentPage === "terms") {
     state.currentPage = "kb-list";
     setPage("kb-list", { skipRender: true });
   }
@@ -1261,10 +1121,9 @@ function updateIdentity(identity) {
   renderCurrentPage();
 
   const messages = {
-    full: "已切换到黑话管理 + 全局",
-    kb: `已切换到仅本库可写（${currentKb().name}）`,
+    full: "已切换到词条管理 + 全局",
     view: "已切换到仅查看，写操作已隐藏",
-    none: "已切换到无权限，黑话入口已隐藏",
+    none: "已切换到无权限，词条入口已隐藏",
   };
   toast(messages[identity], "info");
 }
@@ -1324,7 +1183,7 @@ function bindEvents() {
   document.querySelectorAll('input[name="kb-visibility"]').forEach(input => input.addEventListener("change", () => {
     document.getElementById("btn-save-visibility").click();
   }));
-  document.querySelectorAll("[data-demo-message]").forEach(button => button.addEventListener("click", () => toast(`${button.dataset.demoMessage}仅展示现网入口，本演示聚焦黑话配置`, "info")));
+  document.querySelectorAll("[data-demo-message]").forEach(button => button.addEventListener("click", () => toast(`${button.dataset.demoMessage}仅展示现网入口，本演示聚焦词条配置`, "info")));
   document.getElementById("btn-create-kb").addEventListener("click", () => toast("创建入口沿用现网，本演示可配置现有知识库", "info"));
   for (const context of ["kb", "agent"]) {
     document.getElementById(`btn-${context}-add-member`).addEventListener("click", () => {
@@ -1351,9 +1210,7 @@ function bindEvents() {
   document.querySelectorAll("[data-kb-tab]").forEach((button) => {
     button.addEventListener("click", () => {
       const tab = button.dataset.kbTab;
-      if (tab === "blacktalk" && !permissions().canViewBlack) return;
       state.kbTab = tab;
-      if (tab === "blacktalk") state.kbFilters = { keyword: "", status: "all", page: 1 };
       renderKbSettings();
     });
   });
@@ -1384,6 +1241,9 @@ function bindEvents() {
   });
   scopeFilter.addEventListener("change", (event) => {
     state.globalFilters.scopeType = event.target.value;
+    state.globalFilters.scopeId = "";
+    document.getElementById("list-agent").value = "";
+    document.getElementById("list-agent").hidden = event.target.value !== "app";
     state.globalFilters.page = 1;
     renderBlackTable();
   });
@@ -1396,42 +1256,30 @@ function bindEvents() {
     const button = event.target.closest("[data-term-action]");
     if (button) handleTermAction(button.dataset.termAction, button.dataset.termId);
   });
+  document.getElementById("list-agent").innerHTML = '<option value="">全部 Agent</option>' + APPS.map(item => `<option value="${item.id}">${escapeHtml(item.name)}</option>`).join("");
+  document.getElementById("list-agent").addEventListener("change", event => { state.globalFilters.scopeId = event.target.value; state.globalFilters.page = 1; renderBlackTable(); });
+  document.getElementById("btn-add-attribute").addEventListener("click", () => { renderAttributes([...readAttributes(), { name: "", value: "" }]); });
+  document.getElementById("term-attributes").addEventListener("input", () => refreshTermValidation());
+  document.getElementById("term-attributes").addEventListener("click", event => { if (event.target.closest("[data-remove-attribute]")) { event.target.closest(".attribute-row").remove(); refreshTermValidation(); } });
+  document.getElementById("recall-scope").innerHTML = '<option value="">全局</option>' + APPS.map(item => `<option value="${item.id}">${escapeHtml(item.name)}</option>`).join("");
+  document.getElementById("btn-recall-open").addEventListener("click", () => { if (permissions().canViewTerms) openModal("modal-recall"); });
+  document.getElementById("btn-recall-run").addEventListener("click", renderRecall);
+  for (const id of ["recall-scope", "recall-query"]) document.getElementById(id).addEventListener("input", () => { document.getElementById("recall-result").textContent = "范围或内容已更新，请重新查询。"; });
+  document.addEventListener("click", event => {
+    const button = event.target.closest("[data-open-agent]");
+    if (!button) return;
+    state.agentId = button.dataset.openAgent;
+    state.agentTab = "basic";
+    closeModal("modal-recall");
+    setPage("agent");
+  });
   document.getElementById("btn-black-add").addEventListener("click", () => openTermEditor({ source: "global" }));
-  document.getElementById("btn-black-import").addEventListener("click", () => openImport({ context: "global" }));
+  document.getElementById("btn-black-import").addEventListener("click", openImport);
   document.getElementById("btn-black-export").addEventListener("click", () => {
     const entries = searchEntries(state.entries, state.globalFilters).sort(byUpdatedDesc);
-    exportEntries(entries, "黑话词条-全局");
+    exportEntries(entries, "词条-全局");
   });
-  document.getElementById("btn-black-audit").addEventListener("click", () => openAudit("global"));
-
-  document.getElementById("kb-black-search").addEventListener("input", (event) => {
-    state.kbFilters.keyword = event.target.value;
-    state.kbFilters.page = 1;
-    renderKbBlackTable();
-  });
-  document.getElementById("kb-black-status").addEventListener("change", (event) => {
-    state.kbFilters.status = event.target.value;
-    state.kbFilters.page = 1;
-    renderKbBlackTable();
-  });
-  document.getElementById("kb-black-tbody").addEventListener("click", (event) => {
-    const button = event.target.closest("[data-term-action]");
-    if (button) handleTermAction(button.dataset.termAction, button.dataset.termId);
-  });
-  document.getElementById("btn-kb-black-add").addEventListener("click", () => {
-    openTermEditor({ lockedKbId: state.currentKbId, source: "kb" });
-  });
-  document.getElementById("btn-kb-black-import").addEventListener("click", () => {
-    openImport({ context: "kb", lockedKbId: state.currentKbId });
-  });
-  document.getElementById("btn-kb-black-export").addEventListener("click", () => {
-    const entries = searchEntries(
-      state.entries.filter((entry) => entry.scope?.type === "kb" && entry.scope.id === state.currentKbId),
-      { keyword: state.kbFilters.keyword, status: state.kbFilters.status },
-    ).sort(byUpdatedDesc);
-    exportEntries(entries, `黑话词条-${currentKb().name}`);
-  });
-  document.getElementById("btn-kb-black-audit").addEventListener("click", () => openAudit("kb"));
+  document.getElementById("btn-black-audit").addEventListener("click", openAudit);
 
   document.querySelectorAll("[data-close]").forEach((button) => {
     button.addEventListener("click", () => closeModal(button.dataset.close));
@@ -1452,7 +1300,7 @@ function bindEvents() {
     refreshTermValidation({ showErrors: false });
   });
   document.getElementById("term-scope-target").addEventListener("change", () => refreshTermValidation({ showErrors: false }));
-  for (const id of ["term-name", "term-code", "term-definition"]) {
+  for (const id of ["term-name", "term-definition"]) {
     document.getElementById(id).addEventListener("input", () => refreshTermValidation({ showErrors: false }));
   }
   document.querySelectorAll('input[name="term-status"]').forEach((input) => {
@@ -1493,7 +1341,7 @@ function bindEvents() {
         tone: "primary",
         onConfirm: () => {
           closeModal("modal-term");
-          openTermEditor({ id: termId, readOnly: true, source: state.currentPage === "kb-settings" ? "kb" : "global" });
+          openTermEditor({ id: termId, readOnly: true, source: "global" });
         },
       });
     }
@@ -1564,21 +1412,10 @@ function bindEvents() {
       state.switches[key][state.agentId] = enabled;
       saveState();
       renderAgent();
-      const labels = { followup: "追问推荐", upload: "上传文件", black: "黑话增强" };
+      const labels = { followup: "追问推荐", upload: "上传文件", black: "词条增强" };
       toast(`${labels[key]}已${enabled ? "开启" : "关闭"}`);
     });
   }
-  document.getElementById("btn-demo-run").addEventListener("click", () => {
-    state.agentQuery = document.getElementById("demo-query").value;
-    renderAgentDemo();
-  });
-  document.getElementById("demo-query").addEventListener("keydown", (event) => {
-    if (event.key !== "Enter") return;
-    event.preventDefault();
-    state.agentQuery = event.target.value;
-    renderAgentDemo();
-  });
-
   document.getElementById("btn-reset-demo").addEventListener("click", () => {
     openConfirm({
       title: "重置演示数据",
@@ -1588,6 +1425,7 @@ function bindEvents() {
       tone: "danger",
       onConfirm: () => {
         localStorage.removeItem(STORAGE_KEY);
+        localStorage.removeItem(LEGACY_STORAGE_KEY);
         window.location.reload();
       },
     });
@@ -1606,7 +1444,7 @@ function init() {
   document.getElementById("black-status").value = state.globalFilters.status;
   bindEvents();
   applyPermissions();
-  if (!permissions().canViewBlack && state.currentPage === "blacktalk") state.currentPage = "kb-list";
+  if (!permissions().canViewTerms && state.currentPage === "terms") state.currentPage = "kb-list";
   setPage(state.currentPage);
 }
 

@@ -3,11 +3,11 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="description" content="智能问答平台 · 知识库级别黑话配置 POC" />
-  <title>智能问答平台 · 黑话管理 POC</title>
+  <meta name="description" content="智能问答平台 · 词条管理 POC" />
+  <title>智能问答平台 · 词条管理 POC</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23141414'/%3E%3Cpath d='M16 5 7 10v11l9 5 9-5V10l-9-5Zm0 11 9-5m-9 5-9-5m9 5v11' fill='none' stroke='white' stroke-width='1.5'/%3E%3C/svg%3E" />
-  <link rel="stylesheet" href="style.css?v=20261119-live" />
-  <link rel="stylesheet" href="live.css?v=20261119-live" />
+  <link rel="stylesheet" href="style.css?v=20261119-terms" />
+  <link rel="stylesheet" href="live.css?v=20261119-terms" />
 </head>
 <body>
   <div class="app">
@@ -17,7 +17,7 @@
         <nav class="nav" aria-label="主导航">
           <button class="nav-item active" type="button" data-page="kb-list"><span class="nav-icon nav-icon-book" aria-hidden="true"></span><span>知识库</span></button>
           <button class="nav-item" type="button" data-page="agent-list"><span class="nav-icon nav-icon-agent" aria-hidden="true"></span><span>专业 Agent</span></button>
-          <button class="nav-item" type="button" data-page="blacktalk" id="nav-blacktalk"><span class="nav-icon nav-icon-terms" aria-hidden="true"></span><span>黑话管理</span></button>
+          <button class="nav-item" type="button" data-page="terms" id="nav-terms"><span class="nav-icon nav-icon-terms" aria-hidden="true"></span><span>词条管理</span></button>
         </nav>
         <div class="topbar-right">
           <details class="demo-account">
@@ -26,9 +26,8 @@
             <div class="identity-box">
             <label for="identity-select">身份</label>
             <select class="identity-select" id="identity-select" aria-label="切换演示身份">
-              <option value="full">黑话查看 / 黑话管理 · 全局</option>
-              <option value="kb">黑话查看 / 黑话管理 · 本库</option>
-              <option value="view">黑话查看</option>
+              <option value="full">词条查看 / 词条管理 · 全局</option>
+              <option value="view">词条查看</option>
               <option value="none">无权限</option>
             </select>
             </div>
@@ -46,9 +45,9 @@
             <div>
               <div class="eyebrow">知识运营</div>
               <h1 id="kb-list-title">知识库</h1>
-              <p>管理知识库资源，并在「设置 → 黑话配置」中维护当前知识库的黑话词条。</p>
+              <p>管理知识库资源。</p>
             </div>
-            <div class="page-heading-meta" id="kb-list-meta">子范围优先于全局</div>
+            <div class="page-heading-meta" id="kb-list-meta"></div>
           </div>
           <div class="panel flex-panel">
             <div class="toolbar resource-toolbar">
@@ -109,7 +108,6 @@
                   <button class="kb-tab" type="button" role="tab" data-kb-tab="basic" aria-selected="false">基本信息</button>
                   <button class="kb-tab" type="button" role="tab" data-kb-tab="visibility" aria-selected="false">公开性设置</button>
                   <button class="kb-tab" type="button" role="tab" data-kb-tab="files" aria-selected="false">文件更新</button>
-                  <button class="kb-tab" type="button" role="tab" data-kb-tab="blacktalk" aria-selected="false" id="kb-tab-blacktalk">黑话配置</button>
                 </div>
               </div>
 
@@ -170,56 +168,6 @@
 
               <div class="kb-tab-panel" id="kb-panel-documents"><div class="settings-body"><h2 class="resource-section-title">文件</h2><div class="toolbar"><input class="input live-search" placeholder="请输入搜索内容" aria-label="搜索文件" /><div class="toolbar-right"><button class="btn btn-primary" type="button" data-demo-message="上传文件">＋ 上传文件</button></div></div><div class="file-status-tabs">全部　　初始化　　待处理　　处理中　　已暂停　　成功　　失败　　删除中</div><table class="data"><thead><tr><th>文件名称</th><th>文件大小</th><th>上传时间</th><th>更新时间</th><th>状态</th><th>操作</th></tr></thead><tbody><tr><td>设备运维手册.pdf</td><td>0.1MB</td><td>2026/11/18 10:32:00</td><td>2026/11/18 10:32:22</td><td><span class="tag tag-green">成功</span></td><td><button class="btn-link" type="button" data-demo-message="查看文件">查看</button></td></tr></tbody></table></div></div>
 
-              <div class="kb-tab-panel" id="kb-panel-blacktalk">
-                <div class="locked-scope-note" id="kb-locked-note">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
-                  <span>仅展示作用范围为「<strong id="kb-locked-name">设备运维知识库</strong>」的词条，新增与编辑时作用范围已锁定。</span>
-                </div>
-                <div class="kb-term-content">
-                  <div class="toolbar">
-                    <label class="search-box" aria-label="搜索本库黑话">
-                      <input class="input" id="kb-black-search" placeholder="搜索规范名、规范编码、别名或释义" autocomplete="off" />
-                      <span class="search-ico" aria-hidden="true"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></span>
-                    </label>
-                    <select class="input filter-select" id="kb-black-status" aria-label="按状态筛选">
-                      <option value="all">全部状态</option>
-                      <option value="enabled">启用</option>
-                      <option value="disabled">停用</option>
-                    </select>
-                    <span class="result-count" id="kb-black-count"></span>
-                    <div class="toolbar-right">
-                      <button class="btn" type="button" id="btn-kb-black-audit">变更记录</button>
-                      <button class="btn" type="button" id="btn-kb-black-export">导出</button>
-                      <button class="btn" type="button" id="btn-kb-black-import" data-kb-write>导入</button>
-                      <button class="btn btn-primary" type="button" id="btn-kb-black-add" data-kb-write>新增词条</button>
-                    </div>
-                  </div>
-                  <div class="table-wrap">
-                    <table class="data">
-                      <thead>
-                        <tr>
-                          <th>规范名 / 规范编码</th>
-                          <th>别名</th>
-                          <th>释义摘要</th>
-                          <th>状态</th>
-                          <th>更新时间</th>
-                          <th>操作</th>
-                        </tr>
-                      </thead>
-                      <tbody id="kb-black-tbody"></tbody>
-                    </table>
-                    <div class="empty-state" id="kb-black-empty" hidden>
-                      <div class="ico">⌕</div>
-                      <div>暂无匹配词条</div>
-                      <p>可在当前知识库新增词条，作用范围会自动锁定为本库。</p>
-                    </div>
-                  </div>
-                  <div class="table-footer">
-                    <span id="kb-black-footer-count"></span>
-                    <div class="pager" id="kb-black-pager" aria-label="本库词条分页"></div>
-                  </div>
-                </div>
-              </div>
             </main>
           </div>
         </section>
@@ -239,7 +187,7 @@
             <div>
               <div class="eyebrow">Agent 中心</div>
               <h1 id="agent-page-title">专业 Agent</h1>
-              <p>在 Agent 配置中设置该应用的对话效果。黑话增强默认开启，关闭后不调用黑话解析。</p>
+              <p>在 Agent 配置中设置对话效果。词条增强默认开启。</p>
             </div>
             <div class="page-heading-meta">配置即时生效</div>
           </div>
@@ -290,32 +238,15 @@
                     </div>
                     <div class="switch-row" id="row-black-enhance">
                       <div class="switch-copy">
-                        <strong>黑话增强</strong>
-                        <small>开启后，该应用会按作用范围调用黑话解析，将别名规范化为规范名和规范编码。默认开启。</small>
+                        <strong>词条增强</strong>
+                        <small>开启后，该 Agent 使用全局及自身范围内的词条辅助理解问题。默认开启。</small>
                       </div>
-                      <button class="switch on" type="button" role="switch" aria-checked="true" aria-label="黑话增强" id="switch-black"></button>
+                      <button class="switch on" type="button" role="switch" aria-checked="true" aria-label="词条增强" id="switch-black"></button>
                     </div>
                   </div>
                   <div class="help-inline mt-8" id="agent-write-note" hidden>当前身份仅可查看，效果设置不可修改。</div>
                 </div>
                 <div class="settings-group live-content-settings"><h3>内容设置</h3><div class="content-settings-card"><label for="agent-intro">Agent介绍 <span class="muted">ⓘ</span></label><input class="input" id="agent-intro" placeholder="请输入该Agent的介绍" /><div class="label-toolbar"><span>输入占位引导 <span class="muted">ⓘ</span></span><button class="btn-link" type="button" data-demo-message="输入占位引导">＋ 自定义</button></div><div>场景卡片 <span class="muted">ⓘ</span></div><button class="switch" type="button" role="switch" aria-label="场景卡片" aria-checked="false" id="switch-scenario"></button><div class="label-toolbar"><span>快捷指令</span><button class="btn-link" type="button" data-demo-message="快捷指令">＋ 添加</button></div></div></div>
-                <details class="settings-group agent-demo-details"><summary>黑话解析演示</summary><div id="agent-demo-group">
-                  <h3>黑话解析演示</h3>
-                  <div class="agent-demo">
-                    <div class="agent-demo-head">
-                      <div>
-                        <h4>输入一句现场问法</h4>
-                        <p>仅演示命中词条与生效范围，不生成完整回答；子范围优先于全局。</p>
-                      </div>
-                      <span class="tag tag-blue" id="agent-context-tag">关联：设备运维知识库</span>
-                    </div>
-                    <div class="demo-form">
-                      <input class="input" id="demo-query" value="CT 二次回路异常，先核对计量流变和刀闸位置" aria-label="黑话解析演示输入" />
-                      <button class="btn btn-primary" type="button" id="btn-demo-run">试解析</button>
-                    </div>
-                    <div class="demo-result" id="demo-result" aria-live="polite"></div>
-                  </div>
-                </div></details>
                 </div><aside class="agent-preview"><div class="preview-window-bar"><span></span><span></span><span></span></div><div class="preview-agent-name"><img src="assets/agent.svg" alt="" /><span id="preview-agent-name">设备运维助手</span></div><div class="preview-chat"><p id="preview-agent-intro">产品介绍将会作为副标题在此处展示</p><div class="preview-composer"><span>输入您当前遇到的问题，或尝试向我下达指令</span><div><span class="nav-icon nav-icon-mic" aria-hidden="true"></span><span class="nav-icon nav-icon-send" aria-hidden="true"></span></div></div><div class="suggested-questions"><div>猜你想问</div><div>猜你想问</div><div>猜你想问</div></div></div></aside></div>
               </div>
               <div class="agent-tab-panel" id="agent-panel-kb">
@@ -324,42 +255,35 @@
                   <div class="visibility-radios"><label class="vis-option"><input type="radio" name="agent-visibility" checked /><span><strong>受限访问</strong><small>仅限明确授权的用户访问当前AI Agent</small></span></label><label class="vis-option"><input type="radio" name="agent-visibility" /><span><strong>公开访问</strong><small>平台内所有用户，均可访问当前AI Agent</small></span></label></div>
                   <div class="toolbar member-toolbar"><input class="input live-search" placeholder="搜索用户名/姓名" aria-label="搜索 Agent 成员" /><button class="btn btn-primary" type="button" id="btn-agent-add-member">添加成员</button></div>
                   <table class="data"><thead><tr><th>账号</th><th>姓名</th><th>角色</th><th>操作</th></tr></thead><tbody><tr><td>demo</td><td>演示用户</td><td>所有者</td><td></td></tr></tbody></table>
-                  <details class="associated-kb-details"><summary>关联知识库</summary>
-                  <div class="info-grid">
-                    <dl class="info-item"><dt>知识库</dt><dd id="agent-kb-name"></dd></dl>
-                    <dl class="info-item"><dt>资源标识</dt><dd class="mono" id="agent-kb-code"></dd></dl>
-                    <dl class="info-item"><dt>说明</dt><dd id="agent-kb-description"></dd></dl>
-                    <dl class="info-item"><dt>黑话解析</dt><dd id="agent-kb-black-state">已开启</dd></dl>
-                  </div>
-                  </details>
+
                 </div>
               </div>
             </section>
           </div>
         </section>
 
-        <!-- 全局黑话管理 -->
-        <section class="page" id="page-blacktalk" aria-labelledby="blacktalk-title">
+        <!-- 全局词条管理 -->
+        <section class="page" id="page-terms" aria-labelledby="terms-title">
           <div class="page-heading">
             <div>
               <div class="eyebrow">知识运营</div>
-              <h1 id="blacktalk-title">黑话管理</h1>
-              <p>统一维护全局、应用与知识库范围的黑话词条；保存后立即生效，无审核环节。</p>
+              <h1 id="terms-title">词条管理</h1>
+              <p>统一维护全局或指定 Agent 的词条，保存后立即生效。</p>
             </div>
-            <div class="page-heading-meta" id="blacktalk-meta"></div>
+            <div class="page-heading-meta" id="terms-meta"></div>
           </div>
           <div class="panel flex-panel">
             <div class="toolbar">
-              <label class="search-box" aria-label="搜索黑话">
-                <input class="input" id="black-search" placeholder="搜索规范名、规范编码、别名或释义" autocomplete="off" />
+              <label class="search-box" aria-label="搜索词条">
+                <input class="input" id="black-search" placeholder="搜索名称、别名、释义或属性" autocomplete="off" />
                 <span class="search-ico" aria-hidden="true"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></span>
               </label>
               <select class="input filter-select" id="black-scope" aria-label="按作用范围筛选">
                 <option value="all">全部作用范围</option>
                 <option value="global">全局</option>
-                <option value="app">指定应用</option>
-                <option value="kb">指定知识库</option>
-              </select>
+                <option value="app">指定 Agent</option>
+                              </select>
+              <select class="input filter-select" id="list-agent" aria-label="按 Agent 筛选" hidden></select>
               <select class="input filter-select" id="black-status" aria-label="按状态筛选">
                 <option value="all">全部状态</option>
                 <option value="enabled">启用</option>
@@ -367,6 +291,7 @@
               </select>
               <span class="result-count" id="black-result-count"></span>
               <div class="toolbar-right">
+                <button class="btn" type="button" id="btn-recall-open">词条召回</button>
                 <button class="btn" type="button" id="btn-black-audit">变更记录</button>
                 <button class="btn" type="button" id="btn-black-export">导出</button>
                 <button class="btn" type="button" id="btn-black-import" data-global-write>导入</button>
@@ -377,10 +302,11 @@
               <table class="data">
                 <thead>
                   <tr>
-                    <th>规范名 / 规范编码</th>
+                    <th>词条名称</th>
                     <th>别名</th>
-                    <th>释义摘要</th>
-                    <th>作用范围</th>
+                    <th>释义</th>
+                    <th>可扩展属性</th>
+                    <th>应用范围</th>
                     <th>状态</th>
                     <th>更新时间</th>
                     <th>操作</th>
@@ -399,7 +325,7 @@
                 <span id="black-footer-count"></span>
                 <span class="toolbar-note" id="black-scope-note"></span>
               </div>
-              <div class="pager" id="black-pager" aria-label="黑话词条分页"></div>
+              <div class="pager" id="black-pager" aria-label="词条分页"></div>
             </div>
           </div>
         </section>
@@ -421,14 +347,9 @@
         <form id="term-form" autocomplete="off">
           <input type="hidden" id="term-id" />
           <div class="form-row">
-            <label for="term-name">规范名<span class="req">*</span></label>
+            <label for="term-name">词条名称<span class="req">*</span></label>
             <input class="input" id="term-name" maxlength="60" placeholder="例如：隔离开关" />
             <div class="field-error" id="err-term-name"></div>
-          </div>
-          <div class="form-row">
-            <label for="term-code">规范编码<span class="req">*</span></label>
-            <input class="input mono" id="term-code" maxlength="60" placeholder="例如：EQ-DS-003" />
-            <div class="field-error" id="err-term-code"></div>
           </div>
           <div class="form-row">
             <label for="alias-input">别名<span class="hint">选填，可多个；输入后按 Enter 添加</span></label>
@@ -440,22 +361,22 @@
           </div>
           <div class="form-row">
             <label for="term-definition">释义<span class="req">*</span></label>
-            <textarea class="textarea" id="term-definition" maxlength="500" placeholder="说明该黑话在业务中的准确含义"></textarea>
+            <textarea class="textarea" id="term-definition" maxlength="500" placeholder="说明该词条的含义"></textarea>
             <div class="field-error" id="err-term-definition"></div>
+          </div>
+          <div class="form-row">
+            <div class="label-toolbar"><label>可扩展属性<span class="hint">选填，可多条</span></label><button class="btn-link" type="button" id="btn-add-attribute">＋ 添加属性</button></div>
+            <div id="term-attributes"></div>
+            <div class="field-error" id="err-term-attributes"></div>
           </div>
           <div class="form-row" id="scope-form-row">
             <label>作用范围<span class="req">*</span></label>
             <div class="form-grid" id="scope-editor">
               <select class="input" id="term-scope-type" aria-label="作用范围类型">
                 <option value="global">全局</option>
-                <option value="app">指定应用</option>
-                <option value="kb">指定知识库</option>
+                <option value="app">指定 Agent</option>
               </select>
               <select class="input" id="term-scope-target" aria-label="作用范围对象" hidden></select>
-            </div>
-            <div class="scope-locked-box" id="scope-locked-box" hidden>
-              <span>指定知识库：<strong id="scope-locked-name">设备运维知识库</strong></span>
-              <span class="tag tag-orange">范围已锁定</span>
             </div>
             <div class="field-error" id="err-term-scope"></div>
           </div>
@@ -472,13 +393,13 @@
             <div id="term-conflict-list"></div>
           </div>
           <div class="normalize-preview" id="normalize-preview">
-            <h4>规范化预览</h4>
+            <h4>词条预览</h4>
             <div class="normalize-line"><span>别名归并</span><div id="preview-aliases">添加别名后显示</div></div>
-            <div class="normalize-line"><span>规范结果</span><strong id="preview-result">填写规范名和规范编码后显示</strong></div>
+            <div class="normalize-line"><span>词条名称</span><strong id="preview-result">填写词条名称后显示</strong></div>
             <div class="normalize-line"><span>作用范围</span><span id="preview-scope">全局</span></div>
             <div class="normalize-line"><span>生效说明</span><span id="preview-effect">保存后立即生效</span></div>
           </div>
-          <p class="form-hint mt-12">别名与规范名在同一作用范围内参与冲突校验；不同范围允许重名，并按子范围优先生效。</p>
+          <p class="form-hint mt-12">别名与词条名称在同一作用范围内参与冲突校验；不同 Agent 范围允许重名，召回时指定 Agent 优先于全局。</p>
         </form>
       </div>
       <div class="modal-footer">
@@ -500,8 +421,8 @@
       </div>
       <div class="modal-body">
         <div class="import-note">
-          <div><strong>Excel/CSV 模板字段：</strong>规范名、规范编码、别名、释义、作用范围、范围名称、状态。</div>
-          <div class="mt-8">别名以 <code>|</code> 分隔；作用范围填写 <code>全局</code>、<code>指定应用</code> 或 <code>指定知识库</code>；状态填写 <code>启用</code> 或 <code>停用</code>。CSV 使用 UTF-8 编码，可直接用 Excel 打开和编辑。</div>
+          <div><strong>Excel/CSV 模板字段：</strong>词条名称、别名、释义、可扩展属性、作用范围、Agent名称、状态。</div>
+          <div class="mt-8">别名以 <code>|</code> 分隔；作用范围填写 <code>全局</code> 或 <code>指定 Agent</code>；状态填写 <code>启用</code> 或 <code>停用</code>。可扩展属性填写 JSON 数组，例如 [{&quot;name&quot;:&quot;型号&quot;,&quot;value&quot;:&quot;DS-1&quot;}]。CSV 使用 UTF-8 编码，可直接用 Excel 打开和编辑。</div>
           <div class="mt-8" id="import-scope-note"></div>
         </div>
         <div class="import-toolbar">
@@ -513,7 +434,7 @@
         </div>
         <div class="form-row">
           <label for="import-text">或粘贴 CSV 内容</label>
-          <textarea class="textarea import-textarea" id="import-text" placeholder="规范名,规范编码,别名,释义,作用范围,范围名称,状态&#10;刀闸,EQ-DS-003,隔离刀闸|刀开关,用于隔离电源的开关设备,指定应用,设备运维助手,启用"></textarea>
+          <textarea class="textarea import-textarea" id="import-text" placeholder="词条名称,别名,释义,可扩展属性,作用范围,Agent名称,状态"></textarea>
           <div class="field-error show" id="import-error" hidden></div>
         </div>
         <div class="import-preview" id="import-preview" hidden>
@@ -523,7 +444,7 @@
           </div>
           <div class="import-scroll">
             <table>
-              <thead><tr><th>行</th><th>规范名 / 编码</th><th>作用范围</th><th>状态</th><th>校验</th></tr></thead>
+              <thead><tr><th>行</th><th>词条名称 / 属性</th><th>作用范围</th><th>状态</th><th>校验</th></tr></thead>
               <tbody id="import-preview-body"></tbody>
             </table>
           </div>
@@ -534,6 +455,18 @@
         <button class="btn btn-primary" type="button" id="btn-import-confirm" disabled>确认导入</button>
       </div>
     </div>
+  </div>
+
+  <div class="modal-mask" id="modal-recall">
+    <section class="modal wide" role="dialog" aria-modal="true" aria-labelledby="recall-title">
+      <div class="modal-header"><h3 id="recall-title">词条召回</h3><button class="btn-icon" type="button" data-close="modal-recall" aria-label="关闭">✕</button></div>
+      <div class="modal-body">
+        <div class="form-row"><label for="recall-scope">应用范围</label><select class="input" id="recall-scope"></select><p class="form-hint">全局仅查询全局词条；选择 Agent 时同时查询全局及该 Agent 的词条，同问法优先使用 Agent 词条。</p></div>
+        <div class="form-row"><label for="recall-query">查询内容</label><textarea class="textarea" id="recall-query" placeholder="输入要查询的名称、别名或包含词条的问句"></textarea></div>
+        <div id="recall-result" aria-live="polite"><p class="muted">选择应用范围并输入内容后查询。</p></div>
+      </div>
+      <div class="modal-footer"><button class="btn" type="button" data-close="modal-recall">关闭</button><button class="btn btn-primary" type="button" id="btn-recall-run">查询</button></div>
+    </section>
   </div>
 
   <!-- 变更记录 -->
@@ -557,7 +490,7 @@
   <div class="modal-mask" id="modal-member">
     <section class="modal" role="dialog" aria-modal="true" aria-labelledby="member-title">
       <div class="modal-header"><h3 id="member-title">添加成员</h3><button class="btn-icon" type="button" data-close="modal-member" aria-label="关闭">✕</button></div>
-      <div class="modal-body"><div class="live-form-row"><label for="member-account"><span class="required">*</span> 账号</label><select class="input" id="member-account"><option value="">请选择账号</option><option value="viewer">演示查看用户</option></select></div><div class="live-form-row"><label for="member-role"><span class="required">*</span> 角色</label><select class="input" id="member-role"><option value="">请选择角色</option><option value="view">黑话查看</option><option value="manage">黑话管理</option></select></div><p class="form-hint">演示成员的黑话权限；当前身份可通过右上角用户菜单切换。</p><p class="field-error" id="member-error">请选择账号和角色</p></div>
+      <div class="modal-body"><div class="live-form-row"><label for="member-account"><span class="required">*</span> 账号</label><select class="input" id="member-account"><option value="">请选择账号</option><option value="viewer">演示查看用户</option></select></div><div class="live-form-row"><label for="member-role"><span class="required">*</span> 角色</label><select class="input" id="member-role"><option value="">请选择角色</option><option value="view">词条查看</option><option value="manage">词条管理</option></select></div><p class="form-hint">演示成员的词条权限；当前身份可通过右上角用户菜单切换。</p><p class="field-error" id="member-error">请选择账号和角色</p></div>
       <div class="modal-footer"><button class="btn" type="button" data-close="modal-member">取消</button><button class="btn btn-primary" type="button" id="btn-member-confirm">确定</button></div>
     </section>
   </div>
@@ -580,6 +513,6 @@
 
   <div class="toast-wrap" id="toast-wrap" role="status" aria-live="polite"></div>
 
-  <script type="module" src="app.js?v=20261119-live"></script>
+  <script type="module" src="app.js?v=20261119-terms"></script>
 </body>
 </html>
