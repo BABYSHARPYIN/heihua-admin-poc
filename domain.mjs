@@ -120,6 +120,7 @@ export function validateEntry(candidate, entries) {
   else if (name.length > 60) errors.name = "词条不能超过 60 个字符";
   if (!definition) errors.definition = "请填写释义";
   if (!scopes.length) errors.scopes = "请选择应用范围";
+  if (scopes.some(scope => scope.type === "global") && scopes.some(scope => scope.type === "app")) errors.scopes = "全局与具体 Agent 不能同时选择";
   if (scopes.some(scope => scope.type !== "global" && !(scope.type === "app" && APPS.some(item => item.id === scope.id)))) errors.scopes = "请选择有效的应用范围";
   if (candidate?.scopes !== undefined && !Array.isArray(candidate.scopes)) errors.scopes = "请选择有效的应用范围";
   if (!["enabled", "disabled"].includes(candidate?.status)) errors.status = "请选择状态";

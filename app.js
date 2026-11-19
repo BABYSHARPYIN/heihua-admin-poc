@@ -16,9 +16,9 @@ import {
   validateBatch,
   compareEntries,
   definitionSummary,
-} from "./domain.mjs?v=20261119-admin";
-import { INITIAL_ENTRIES } from "./data.mjs?v=20261119-admin";
-import { createScopePicker } from "./scope-picker.mjs?v=20261119-admin";
+} from "./domain.mjs?v=20261119-exclusive";
+import { INITIAL_ENTRIES } from "./data.mjs?v=20261119-exclusive";
+import { createScopePicker } from "./scope-picker.mjs?v=20261119-exclusive";
 
 const STORAGE_KEY = "heihua-admin-poc-state-v2";
 const LEGACY_STORAGE_KEY = "heihua-admin-poc-state-v1";
@@ -1054,6 +1054,7 @@ function bindEvents() {
   termScopePicker = createScopePicker(document.getElementById("term-scope-picker"), {
     label: "应用范围",
     placeholder: "请选择应用范围",
+    exclusiveGlobal: true,
     onChange() { refreshTermValidation(); },
   });
   document.getElementById("btn-black-add").addEventListener("click", () => openTermEditor({ source: "global" }));
