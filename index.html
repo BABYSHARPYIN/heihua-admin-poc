@@ -6,8 +6,8 @@
   <meta name="description" content="智能问答平台 · 词条管理 POC" />
   <title>智能问答平台 · 词条管理 POC</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23141414'/%3E%3Cpath d='M16 5 7 10v11l9 5 9-5V10l-9-5Zm0 11 9-5m-9 5-9-5m9 5v11' fill='none' stroke='white' stroke-width='1.5'/%3E%3C/svg%3E" />
-  <link rel="stylesheet" href="style.css?v=20261119-terms" />
-  <link rel="stylesheet" href="live.css?v=20261119-terms" />
+  <link rel="stylesheet" href="style.css?v=20261119-delivery" />
+  <link rel="stylesheet" href="live.css?v=20261119-delivery" />
 </head>
 <body>
   <div class="app">
@@ -187,9 +187,7 @@
             <div>
               <div class="eyebrow">Agent 中心</div>
               <h1 id="agent-page-title">专业 Agent</h1>
-              <p>在 Agent 配置中设置对话效果。词条增强默认开启。</p>
             </div>
-            <div class="page-heading-meta">配置即时生效</div>
           </div>
           <div class="agent-layout">
             <section class="panel agent-config-panel">
@@ -239,7 +237,6 @@
                     <div class="switch-row" id="row-black-enhance">
                       <div class="switch-copy">
                         <strong>词条增强</strong>
-                        <small>开启后，该 Agent 使用全局及自身范围内的词条辅助理解问题。默认开启。</small>
                       </div>
                       <button class="switch on" type="button" role="switch" aria-checked="true" aria-label="词条增强" id="switch-black"></button>
                     </div>
@@ -268,7 +265,6 @@
             <div>
               <div class="eyebrow">知识运营</div>
               <h1 id="terms-title">词条管理</h1>
-              <p>统一维护全局或指定 Agent 的词条，保存后立即生效。</p>
             </div>
             <div class="page-heading-meta" id="terms-meta"></div>
           </div>
@@ -323,7 +319,6 @@
             <div class="table-footer">
               <div class="footer-left">
                 <span id="black-footer-count"></span>
-                <span class="toolbar-note" id="black-scope-note"></span>
               </div>
               <div class="pager" id="black-pager" aria-label="词条分页"></div>
             </div>
@@ -339,7 +334,6 @@
       <div class="modal-header">
         <div>
           <h3 id="term-title">新增词条</h3>
-          <div class="modal-subtitle" id="term-subtitle">保存后立即生效，无审核环节</div>
         </div>
         <button class="btn-icon" type="button" data-close="modal-term" aria-label="关闭">✕</button>
       </div>
@@ -397,9 +391,7 @@
             <div class="normalize-line"><span>别名归并</span><div id="preview-aliases">添加别名后显示</div></div>
             <div class="normalize-line"><span>词条名称</span><strong id="preview-result">填写词条名称后显示</strong></div>
             <div class="normalize-line"><span>作用范围</span><span id="preview-scope">全局</span></div>
-            <div class="normalize-line"><span>生效说明</span><span id="preview-effect">保存后立即生效</span></div>
           </div>
-          <p class="form-hint mt-12">别名与词条名称在同一作用范围内参与冲突校验；不同 Agent 范围允许重名，召回时指定 Agent 优先于全局。</p>
         </form>
       </div>
       <div class="modal-footer">
@@ -415,7 +407,6 @@
       <div class="modal-header">
         <div>
           <h3 id="import-title">导入词条</h3>
-          <div class="modal-subtitle">先预览校验，全部通过后再确认写入</div>
         </div>
         <button class="btn-icon" type="button" data-close="modal-import" aria-label="关闭">✕</button>
       </div>
@@ -423,7 +414,6 @@
         <div class="import-note">
           <div><strong>Excel/CSV 模板字段：</strong>词条名称、别名、释义、可扩展属性、作用范围、Agent名称、状态。</div>
           <div class="mt-8">别名以 <code>|</code> 分隔；作用范围填写 <code>全局</code> 或 <code>指定 Agent</code>；状态填写 <code>启用</code> 或 <code>停用</code>。可扩展属性填写 JSON 数组，例如 [{&quot;name&quot;:&quot;型号&quot;,&quot;value&quot;:&quot;DS-1&quot;}]。CSV 使用 UTF-8 编码，可直接用 Excel 打开和编辑。</div>
-          <div class="mt-8" id="import-scope-note"></div>
         </div>
         <div class="import-toolbar">
           <button class="btn btn-sm" type="button" id="btn-download-template">下载 CSV 模板</button>
@@ -461,7 +451,7 @@
     <section class="modal wide" role="dialog" aria-modal="true" aria-labelledby="recall-title">
       <div class="modal-header"><h3 id="recall-title">词条召回</h3><button class="btn-icon" type="button" data-close="modal-recall" aria-label="关闭">✕</button></div>
       <div class="modal-body">
-        <div class="form-row"><label for="recall-scope">应用范围</label><select class="input" id="recall-scope"></select><p class="form-hint">全局仅查询全局词条；选择 Agent 时同时查询全局及该 Agent 的词条，同问法优先使用 Agent 词条。</p></div>
+        <div class="form-row"><label for="recall-scope">应用范围</label><select class="input" id="recall-scope"></select></div>
         <div class="form-row"><label for="recall-query">查询内容</label><textarea class="textarea" id="recall-query" placeholder="输入要查询的名称、别名或包含词条的问句"></textarea></div>
         <div id="recall-result" aria-live="polite"><p class="muted">选择应用范围并输入内容后查询。</p></div>
       </div>
@@ -475,7 +465,6 @@
       <div class="modal-header">
         <div>
           <h3 id="audit-title">变更记录</h3>
-          <div class="modal-subtitle">保存、停用、删除与导入均会留痕；仅最近一次变更可回滚。</div>
         </div>
         <button class="btn-icon" type="button" data-close="modal-audit" aria-label="关闭">✕</button>
       </div>
@@ -490,7 +479,7 @@
   <div class="modal-mask" id="modal-member">
     <section class="modal" role="dialog" aria-modal="true" aria-labelledby="member-title">
       <div class="modal-header"><h3 id="member-title">添加成员</h3><button class="btn-icon" type="button" data-close="modal-member" aria-label="关闭">✕</button></div>
-      <div class="modal-body"><div class="live-form-row"><label for="member-account"><span class="required">*</span> 账号</label><select class="input" id="member-account"><option value="">请选择账号</option><option value="viewer">演示查看用户</option></select></div><div class="live-form-row"><label for="member-role"><span class="required">*</span> 角色</label><select class="input" id="member-role"><option value="">请选择角色</option><option value="view">词条查看</option><option value="manage">词条管理</option></select></div><p class="form-hint">演示成员的词条权限；当前身份可通过右上角用户菜单切换。</p><p class="field-error" id="member-error">请选择账号和角色</p></div>
+      <div class="modal-body"><div class="live-form-row"><label for="member-account"><span class="required">*</span> 账号</label><select class="input" id="member-account"><option value="">请选择账号</option><option value="viewer">演示查看用户</option></select></div><div class="live-form-row"><label for="member-role"><span class="required">*</span> 角色</label><select class="input" id="member-role"><option value="">请选择角色</option><option value="view">词条查看</option><option value="manage">词条管理</option></select></div><p class="field-error" id="member-error">请选择账号和角色</p></div>
       <div class="modal-footer"><button class="btn" type="button" data-close="modal-member">取消</button><button class="btn btn-primary" type="button" id="btn-member-confirm">确定</button></div>
     </section>
   </div>
@@ -513,6 +502,6 @@
 
   <div class="toast-wrap" id="toast-wrap" role="status" aria-live="polite"></div>
 
-  <script type="module" src="app.js?v=20261119-terms"></script>
+  <script type="module" src="app.js?v=20261119-delivery"></script>
 </body>
 </html>

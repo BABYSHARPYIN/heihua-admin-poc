@@ -15,6 +15,8 @@ function check(condition, message) {
   if (!condition) failures.push(message);
 }
 
+check(!/优先于全局|同问法优先|本演示|无审核环节|全局仅查询全局词条/.test(html + app), "交付界面不得包含实现规则、演示说明或流程解释；保留字段、校验及操作反馈");
+
 const ids = [...html.matchAll(/\bid="([^"]+)"/g)].map((match) => match[1]);
 const duplicateIds = [...new Set(ids.filter((id, index) => ids.indexOf(id) !== index))];
 check(duplicateIds.length === 0, `index.html 存在重复 id：${duplicateIds.join("、")}`);
