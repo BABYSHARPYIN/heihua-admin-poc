@@ -102,24 +102,26 @@ test("单条变更记录按ID隔离，同名不同范围也不会混入", async 
   await terms(page);
   await page.locator("#black-tbody tr").first().getByRole("button", { name: "变更记录", exact: true }).click();
   await expect(page.locator("#audit-content tbody tr")).toHaveCount(1);
-  await expect(page.locator("#audit-content")).toContainText("工程师甲");
-  await expect(page.locator("#audit-content")).not.toContainText("工程师乙");
+  await expect(page.locator("#audit-content tbody tr td").nth(4)).toHaveText("admin");
+  await expect(page.locator("#audit-content tbody tr td").nth(1)).toHaveText("新增");
+  await expect(page.locator("#audit-content th")).toHaveText(["时间", "操作", "词条", "应用范围", "操作人"]);
+  await expect(page.locator("#audit-content button, #audit-content a")).toHaveCount(0);
   await shot(page, "12-record-history.png");
   await page.keyboard.press("Escape");
   await page.locator("#black-tbody tr").nth(1).getByRole("button", { name: "变更记录", exact: true }).click();
   await expect(page.locator("#audit-content tbody tr")).toHaveCount(1);
-  await expect(page.locator("#audit-content")).toContainText("工程师乙");
-  await expect(page.locator("#audit-content")).not.toContainText("工程师甲");
-  await expect(page.locator("#audit-content [data-rollback-log]")).toHaveCount(1);
+  await expect(page.locator("#audit-content tbody tr td").nth(4)).toHaveText("admin");
+  await expect(page.locator("#audit-content tbody tr td").nth(1)).toHaveText("导入");
+  await expect(page.locator("#audit-content button, #audit-content a")).toHaveCount(0);
   expect(errors).toEqual([]);
 });
 
 test("释义摘要准确显示200字并追加三个英文点，完整内容仍可编辑", async ({ page }) => {
-  await page.addInitScript(() => localStorage.setItem("heihua-admin-poc-state-v2", JSON.stringify({ identity: "full", entries: [{ id: "long", name: "长释义词条", definition: "测".repeat(201), scopes: [{ type: "global" }], status: "enabled", recallCount: 66, operator: "现场工程师" }] })));
+  await page.addInitScript(() => localStorage.setItem("heihua-admin-poc-state-v2", JSON.stringify({ identity: "full", entries: [{ id: "long", name: "长释义词条", definition: "测".repeat(201), scopes: [{ type: "global" }], status: "enabled", recallCount: 66, operator: "admin" }] })));
   const errors = await open(page);
   await terms(page);
   await expect(page.locator(".definition-cell")).toHaveText("测".repeat(200) + "...");
-  await expect(page.locator("#black-tbody td").nth(6)).toHaveText("现场工程师");
+  await expect(page.locator("#black-tbody td").nth(6)).toHaveText("admin");
   await page.locator("#black-tbody").getByRole("button", { name: "编辑", exact: true }).click();
   await expect(page.locator("#term-definition")).toHaveValue("测".repeat(201));
   expect(errors).toEqual([]);
@@ -193,7 +195,7 @@ test("导入顿号拆成独立记录，导出每条一行，冲突时原子阻�
   expect(errors).toEqual([]);
 });
 
-test("编辑保留次数且回滚可用，查看身份禁止写入", async ({ page }) => {
+test("编辑保留次数，变更记录只读，查看身份禁止写入", async ({ page }) => {
   const errors = await open(page);
   await terms(page);
   const first = page.locator("#black-tbody tr").first();
@@ -204,10 +206,11 @@ test("编辑保留次数且回滚可用，查看身份禁止写入", async ({ pa
   await page.locator("#btn-term-save").click();
   await expect(first.locator("td").nth(4)).toHaveText(count);
   await first.getByRole("button", { name: "变更记录", exact: true }).click();
-  await page.locator("[data-rollback-log]").first().click();
-  await page.locator("#btn-confirm-ok").click();
+  await expect(page.locator("#audit-content tbody tr")).toHaveCount(1);
+  await expect(page.locator("#audit-content tbody td").nth(4)).toHaveText("admin");
+  await expect(page.locator("#audit-content button, #audit-content a")).toHaveCount(0);
   await page.keyboard.press("Escape");
-  await expect(first).not.toContainText("更新后释义");
+  await expect(first).toContainText("更新后释义");
   await page.locator(".demo-account summary").click();
   await page.locator("#identity-select").selectOption("view");
   await page.locator(".demo-account summary").click();
