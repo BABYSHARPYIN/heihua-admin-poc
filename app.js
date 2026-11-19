@@ -9,14 +9,16 @@ import {
   normalizeAliases,
   normalizeText,
   paginate,
-  resolveTerms,
+  scopeKey,
   scopeLabel,
+  scopesLabel,
   searchEntries,
   statusLabel,
   templateCsv,
   validateEntry,
-} from "./domain.mjs?v=20261119-simple";
-import { INITIAL_ENTRIES } from "./data.mjs?v=20261119-simple";
+} from "./domain.mjs?v=20261119-delivery-multi";
+import { INITIAL_ENTRIES } from "./data.mjs?v=20261119-delivery-multi";
+import { createScopePicker } from "./scope-picker.mjs?v=20261119-delivery-multi";
 
 const STORAGE_KEY = "heihua-admin-poc-state-v2";
 const LEGACY_STORAGE_KEY = "heihua-admin-poc-state-v1";
@@ -53,7 +55,7 @@ function defaultSwitches() {
 }
 
 const state = {
-  entries: clone(INITIAL_ENTRIES),
+  entries: INITIAL_ENTRIES.map(migrateEntry).filter(Boolean),
   audit: [],
   identity: "full",
   visibility: { ...DEFAULT_VISIBILITY },
@@ -69,13 +71,16 @@ const state = {
   fileConfigured: {},
   agentSearch: "",
   memberContext: "kb",
-  globalFilters: { keyword: "", scopeType: "all", scopeId: "", status: "all", page: 1 },
+  globalFilters: { keyword: "", scopeKeys: [], status: "all", page: 1 },
   term: null,
   import: null,
   confirmAction: null,
   importResult: null,
   lastFocus: null,
 };
+
+let listScopePicker;
+let termScopePicker;
 
 function loadState() {
   try {
@@ -88,8 +93,9 @@ function loadState() {
     if (Array.isArray(saved.audit)) state.audit = saved.audit.map(log => {
       const before = log.before ? migrateEntry(log.before) : null;
       const after = log.after ? migrateEntry(log.after) : null;
-      const migrated = migrateEntry({ scope: log.scope });
-      return migrated ? { ...log, scope: migrated.scope, before, after } : null;
+      const migrated = migrateEntry({ scopes: log.scopes, scope: log.scope });
+      const { scope, ...rest } = log;
+      return migrated ? { ...rest, scopes: migrated.scopes, before, after } : null;
     }).filter(Boolean);
     if (Array.isArray(saved.knowledgeBases)) {
       for (const kb of KNOWLEDGE_BASES) {
@@ -174,23 +180,24 @@ function byUpdatedDesc(a, b) {
   return new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime();
 }
 
-function scopeCell(scope) {
-  return escapeHtml(scopeLabel(scope));
+function scopeCell(scopes) {
+  return scopes.map(scope => scope.type === "global" ? "全局" : `<button class="btn-link scope-link" type="button" data-open-agent="${escapeHtml(scope.id)}">${escapeHtml(scopeLabel(scope))}</button>`).join("、");
 }
 
-function renderRecall() {
-  const result = document.getElementById("recall-result");
-  const query = document.getElementById("recall-query").value.trim();
-  const appId = document.getElementById("recall-scope").value;
-  if (!query) { result.textContent = "请输入查询内容"; return; }
-  const hits = resolveTerms(query, state.entries, appId ? { appId } : {});
-  result.innerHTML = hits.length ? `<p>召回 ${hits.length} 条词条</p><table class="data recall-table"><thead><tr><th>命中内容</th><th>词条名称</th><th>释义</th><th>应用范围</th></tr></thead><tbody>${hits.map(({ keyword, entry }) => `<tr><td>${escapeHtml(keyword)}</td><td>${escapeHtml(entry.name)}</td><td>${escapeHtml(entry.definition)}</td><td>${scopeCell(entry.scope)}</td></tr>`).join("")}</tbody></table>` : '<div class="empty-state">未召回匹配的启用词条</div>';
+function readAttributes() {
+  return [...document.querySelectorAll("#term-attributes .attribute-row")].map(row => ({
+    name: row.querySelector('[data-attribute="name"]').value,
+    value: row.querySelector('[data-attribute="value"]').value,
+  }));
+}
+
+function renderAttributes(attributes, readOnly = false) {
+  document.getElementById("term-attributes").innerHTML = attributes.map(item => `<div class="attribute-row"><input class="input" data-attribute="name" aria-label="属性名" placeholder="属性名" value="${escapeHtml(item.name)}" ${readOnly ? "readonly" : ""} /><input class="input" data-attribute="value" aria-label="属性值" placeholder="属性值" value="${escapeHtml(item.value)}" ${readOnly ? "readonly" : ""} />${readOnly ? "" : '<button class="btn-link danger" type="button" data-remove-attribute aria-label="删除属性">删除</button>'}</div>`).join("");
+  document.getElementById("btn-add-attribute").hidden = readOnly;
 }
 
 function statusBadge(status) {
-  return status === "disabled"
-    ? '<span class="status status-disabled">停用</span>'
-    : '<span class="status status-enabled">启用</span>';
+  return status === "disabled" ? '<span class="status-disabled">停用</span>' : '<span class="status-enabled">启用</span>';
 }
 
 function toast(message, type = "success", timeout = 2800) {
@@ -217,7 +224,7 @@ function closeModal(id) {
   if (!modal?.classList.contains("show")) return;
   modal.classList.remove("show");
   if (!document.querySelector(".modal-mask.show")) document.body.style.overflow = "";
-  if (id === "modal-term") state.term = null;
+  if (id === "modal-term") { state.term = null; termScopePicker.close(); }
   if (id === "modal-import") {
     state.import = null;
     const confirm = document.getElementById("btn-import-confirm");
@@ -231,13 +238,12 @@ function closeTopModal() {
   if (open.length) closeModal(open[open.length - 1].id);
 }
 
-function openConfirm({ title, textHtml, extraHtml = "", confirmText = "确定", tone = "danger", onConfirm }) {
+function openConfirm({ title, textHtml, confirmText = "确定", onConfirm }) {
   document.getElementById("confirm-title").textContent = title;
   document.getElementById("confirm-text").innerHTML = textHtml;
-  document.getElementById("confirm-extra").innerHTML = extraHtml;
   const button = document.getElementById("btn-confirm-ok");
   button.textContent = confirmText;
-  button.className = tone === "primary" ? "btn btn-primary" : "btn btn-danger-solid";
+  button.className = "btn btn-primary";
   state.confirmAction = onConfirm;
   openModal("modal-confirm");
   window.setTimeout(() => button.focus(), 30);
@@ -422,7 +428,8 @@ function renderBlackTable() {
         </td>
         <td>${escapeHtml(normalizeAliases(entry.aliases).join("、") || "—")}</td>
         <td><div class="definition-cell truncate-2" title="${escapeHtml(entry.definition)}">${escapeHtml(entry.definition)}</div></td>
-        <td>${scopeCell(entry.scope)}</td>
+        <td>${escapeHtml((entry.attributes || []).map(item => `${item.name}：${item.value}`).join("；") || "—")}</td>
+        <td>${scopeCell(entry.scopes)}</td>
         <td>${statusBadge(entry.status)}</td>
         <td class="nowrap">${escapeHtml(formatDateTime(entry.updatedAt))}</td>
         <td class="action-cell">${termActions(entry, "global")}</td>
@@ -433,9 +440,6 @@ function renderBlackTable() {
   document.getElementById("black-empty").hidden = paged.items.length > 0;
   document.getElementById("black-result-count").innerHTML = `共 <strong>${paged.total}</strong> 条`;
   document.getElementById("black-footer-count").textContent = `第 ${paged.page} / ${paged.pages} 页 · 每页 ${GLOBAL_PAGE_SIZE} 条`;
-  const counts = { global: 0, app: 0 };
-  for (const entry of state.entries) counts[entry.scope?.type || "global"] += 1;
-  document.getElementById("terms-meta").textContent = `全局 ${counts.global} · 指定 Agent ${counts.app}`;
   document.querySelectorAll("[data-global-write]").forEach((node) => {
     node.hidden = !permissions().canWriteGlobal;
   });
@@ -460,14 +464,14 @@ function termActions(entry, context) {
 }
 
 /* ——— 留痕 ——— */
-function pushAudit({ action, termId, termName, scope, before, after }) {
+function pushAudit({ action, termId, termName, scopes, before, after }) {
   state.audit.unshift({
     id: `log-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     at: new Date().toISOString(),
     action,
     termId,
     termName,
-    scope: clone(scope || { type: "global" }),
+    scopes: clone(scopes || []),
     identity: state.identity,
     before: before ? clone(before) : null,
     after: after ? clone(after) : null,
@@ -485,7 +489,7 @@ function setTermStatus(termId, nextStatus) {
     action: nextStatus === "enabled" ? "启用" : "停用",
     termId: after.id,
     termName: after.name,
-    scope: after.scope,
+    scopes: after.scopes,
     before,
     after,
   });
@@ -514,9 +518,7 @@ function handleTermAction(action, termId) {
       openConfirm({
         title: "停用词条",
         textHtml: `确认停用 <strong>「${escapeHtml(entry.name)}」</strong>？`,
-        extraHtml: '<div class="confirm-note">停用后将不再召回该词条。</div>',
         confirmText: "停用",
-        tone: "danger",
         onConfirm: () => setTermStatus(entry.id, "disabled"),
       });
     }
@@ -524,9 +526,7 @@ function handleTermAction(action, termId) {
     openConfirm({
       title: "删除词条",
       textHtml: `确认删除 <strong>「${escapeHtml(entry.name)}」</strong>？`,
-      extraHtml: '<div class="confirm-warning">删除后将不再召回该词条。</div>',
       confirmText: "删除",
-      tone: "danger",
       onConfirm: () => {
         const current = state.entries.find((item) => item.id === entry.id);
         if (!current) return;
@@ -536,7 +536,7 @@ function handleTermAction(action, termId) {
           action: "删除",
           termId: before.id,
           termName: before.name,
-          scope: before.scope,
+          scopes: before.scopes,
           before,
           after: null,
         });
@@ -549,14 +549,6 @@ function handleTermAction(action, termId) {
 }
 
 /* ——— 词条抽屉 ——— */
-function populateScopeTarget(type, selectedId = "") {
-  const target = document.getElementById("term-scope-target");
-  const pool = type === "app" ? APPS : [];
-  target.hidden = type === "global";
-  target.innerHTML = pool.map((item) => `<option value="${item.id}">${escapeHtml(item.name)}</option>`).join("");
-  if (pool.length) target.value = pool.some((item) => item.id === selectedId) ? selectedId : pool[0].id;
-}
-
 function renderAliasChips() {
   const chips = document.getElementById("alias-chips");
   const readOnly = Boolean(state.term?.readOnly);
@@ -588,7 +580,7 @@ function addAliasFromInput() {
 }
 
 function clearTermFieldErrors() {
-  for (const field of ["name", "aliases", "definition", "scope", "status"]) {
+  for (const field of ["name", "attributes", "aliases", "definition", "scopes", "status"]) {
     const error = document.getElementById(`err-term-${field}`);
     if (error) {
       error.textContent = "";
@@ -608,21 +600,20 @@ function setTermFieldError(field, message) {
   const input =
     field === "aliases"
       ? document.getElementById("alias-editor")
-      : field === "scope"
-        ? document.getElementById("term-scope-type")
+      : field === "scopes"
+        ? document.querySelector("#term-scope-picker button")
         : document.getElementById(`term-${field}`);
   input?.classList.add("error");
 }
 
 function getTermCandidate() {
-  const type = document.getElementById("term-scope-type").value;
-  const scope = type === "global" ? { type: "global" } : { type, id: document.getElementById("term-scope-target").value };
   return {
     id: state.term?.id || "draft-term",
     name: document.getElementById("term-name").value,
+    attributes: readAttributes(),
     aliases: state.term?.aliases || [],
     definition: document.getElementById("term-definition").value,
-    scope,
+    scopes: termScopePicker.value(),
     status: document.querySelector('input[name="term-status"]:checked')?.value || "enabled",
   };
 }
@@ -692,15 +683,14 @@ function openTermEditor({ id = null, readOnly = false, source = "global" } = {})
   document.getElementById("term-title").textContent = readOnly ? "查看词条" : entry ? "编辑词条" : "新增词条";
   document.getElementById("term-id").value = entry?.id || "";
   document.getElementById("term-name").value = entry?.name || "";
+  renderAttributes(entry?.attributes || [], readOnly);
   document.getElementById("term-definition").value = entry?.definition || "";
   document.getElementById("alias-input").value = "";
   for (const radio of document.querySelectorAll('input[name="term-status"]')) {
     radio.checked = radio.value === (entry?.status || "enabled");
   }
 
-  const type = entry?.scope?.type || "global";
-  document.getElementById("term-scope-type").value = type;
-  populateScopeTarget(type, entry?.scope?.id || "");
+  termScopePicker.set(entry?.scopes || [], readOnly);
 
   const drawer = document.querySelector("#modal-term .drawer");
   drawer.classList.toggle("drawer-readonly", readOnly);
@@ -708,8 +698,6 @@ function openTermEditor({ id = null, readOnly = false, source = "global" } = {})
   document.getElementById("term-definition").readOnly = readOnly;
   document.getElementById("alias-input").disabled = readOnly;
   document.getElementById("alias-input").placeholder = readOnly ? "只读" : "例如：刀闸";
-  document.getElementById("term-scope-type").disabled = readOnly;
-  document.getElementById("term-scope-target").disabled = readOnly;
   for (const radio of document.querySelectorAll('input[name="term-status"]')) radio.disabled = readOnly;
 
   const footerButtons = document.querySelectorAll("#modal-term .modal-footer .btn");
@@ -735,9 +723,11 @@ function commitTerm() {
     if (validation.conflicts.length) {
       toast("请先处理别名或重复词条冲突", "error");
     } else {
-      const first = ["name", "definition", "scope", "status"].find((field) => validation.errors[field]);
+      const first = ["name", "attributes", "definition", "scopes", "status"].find((field) => validation.errors[field]);
       if (first === "aliases") document.getElementById("alias-input").focus();
-      else document.getElementById(first === "scope" ? "term-scope-type" : `term-${first}`)?.focus();
+      else if (first === "scopes") document.querySelector("#term-scope-picker button").focus();
+      else if (first === "attributes") document.querySelector("#term-attributes input")?.focus();
+      else document.getElementById(`term-${first}`)?.focus();
     }
     return;
   }
@@ -747,13 +737,13 @@ function commitTerm() {
   if (state.term.id) {
     const index = state.entries.findIndex((entry) => entry.id === state.term.id);
     const before = clone(state.entries[index]);
-    const after = { ...before, ...normalized, attributes: before.attributes || [], updatedAt: now };
+    const after = { ...before, ...normalized, updatedAt: now };
     state.entries[index] = after;
     pushAudit({
       action: "编辑",
       termId: after.id,
       termName: after.name,
-      scope: after.scope,
+      scopes: after.scopes,
       before,
       after,
     });
@@ -770,7 +760,7 @@ function commitTerm() {
       action: "新增",
       termId: after.id,
       termName: after.name,
-      scope: after.scope,
+      scopes: after.scopes,
       before: null,
       after,
     });
@@ -891,7 +881,7 @@ function openImport() {
 }
 
 function importSampleForScope() {
-  return entriesToCsv([{ name: "油色谱异常", aliases: ["油色", "油色谱超标"], definition: "油中溶解气体分析发现的设备异常。", scope: { type: "global" }, status: "enabled" }]);
+  return entriesToCsv([{ name: "油色谱异常", aliases: ["油色", "油色谱超标"], definition: "油中溶解气体分析发现的设备异常。", attributes: [], scopes: [{ type: "global" }], status: "enabled" }]);
 }
 
 function previewImport() {
@@ -932,8 +922,8 @@ function previewImport() {
   document.getElementById("import-preview-body").innerHTML = parsed.rows.map((row) => `
     <tr class="${row.valid ? "" : "row-invalid"}">
       <td class="mono">${row.line}</td>
-      <td><div class="cell-main">${escapeHtml(row.candidate.name || "—")}</div></td>
-      <td class="nowrap">${escapeHtml(scopeLabel(row.candidate.scope))}</td>
+      <td><div class="cell-main">${escapeHtml(row.candidate.name || "—")}</div><div class="cell-sub">${escapeHtml((row.candidate.attributes || []).map(item => `${item.name}：${item.value}`).join("；"))}</div></td>
+      <td>${escapeHtml(scopesLabel(row.candidate.scopes))}</td>
       <td class="nowrap">${escapeHtml(statusLabel(row.candidate.status))}</td>
       <td>${row.valid ? '<span class="import-status ok">通过</span>' : `<div class="import-errors">${row.errors.map(escapeHtml).join("<br>")}</div>`}</td>
     </tr>`).join("");
@@ -967,7 +957,7 @@ function confirmImport() {
       action: "导入",
       termId: entry.id,
       termName: entry.name,
-      scope: entry.scope,
+      scopes: entry.scopes,
       before: null,
       after: entry,
     });
@@ -1003,13 +993,13 @@ function renderAudit() {
   content.innerHTML = `
     <div class="audit-scroll">
       <table class="audit-table">
-        <thead><tr><th>时间</th><th>操作</th><th>词条</th><th>作用范围</th><th>身份</th><th>操作</th></tr></thead>
+        <thead><tr><th>时间</th><th>操作</th><th>词条</th><th>应用范围</th><th>身份</th><th>操作</th></tr></thead>
         <tbody>${logs.map((log) => `
           <tr>
             <td class="nowrap">${escapeHtml(formatDateTime(log.at))}</td>
             <td><span class="audit-action">${escapeHtml(log.action)}</span></td>
             <td><div class="audit-term">${escapeHtml(log.termName || "—")}</div><div class="audit-sub mono">${escapeHtml(log.termId || "")}</div></td>
-            <td class="nowrap">${escapeHtml(scopeLabel(log.scope))}</td>
+            <td>${escapeHtml(scopesLabel(log.scopes))}</td>
             <td class="nowrap">${escapeHtml(IDENTITY_LABELS[log.identity] || log.identity || "—")}</td>
             <td class="nowrap">${canRollback(log) ? `<button class="btn-link" type="button" data-rollback-log="${escapeHtml(log.id)}">回滚</button>` : log.id === state.audit[0]?.id ? '<span class="muted">最近一次</span>' : '<span class="muted">—</span>'}</td>
           </tr>`).join("")}</tbody>
@@ -1033,9 +1023,7 @@ function rollbackAudit(logId) {
   openConfirm({
     title: "回滚最近一次变更",
     textHtml: `确认${actionText}？`,
-    extraHtml: "",
     confirmText: "确认回滚",
-    tone: "primary",
     onConfirm: () => {
       if (before) {
         const index = state.entries.findIndex((item) => item.id === log.termId);
@@ -1048,7 +1036,7 @@ function rollbackAudit(logId) {
         action: "回滚",
         termId: log.termId,
         termName: before?.name || current?.name || log.termName,
-        scope: before?.scope || log.scope,
+        scopes: before?.scopes || log.scopes,
         before: current,
         after: before,
       });
@@ -1183,18 +1171,9 @@ function bindEvents() {
   });
 
   const globalSearch = document.getElementById("black-search");
-  const scopeFilter = document.getElementById("black-scope");
   const statusFilter = document.getElementById("black-status");
   globalSearch.addEventListener("input", (event) => {
     state.globalFilters.keyword = event.target.value;
-    state.globalFilters.page = 1;
-    renderBlackTable();
-  });
-  scopeFilter.addEventListener("change", (event) => {
-    state.globalFilters.scopeType = event.target.value;
-    state.globalFilters.scopeId = "";
-    document.getElementById("list-agent").value = "";
-    document.getElementById("list-agent").hidden = event.target.value !== "app";
     state.globalFilters.page = 1;
     renderBlackTable();
   });
@@ -1207,17 +1186,39 @@ function bindEvents() {
     const button = event.target.closest("[data-term-action]");
     if (button) handleTermAction(button.dataset.termAction, button.dataset.termId);
   });
-  document.getElementById("list-agent").innerHTML = '<option value="">全部 Agent</option>' + APPS.map(item => `<option value="${item.id}">${escapeHtml(item.name)}</option>`).join("");
-  document.getElementById("list-agent").addEventListener("change", event => { state.globalFilters.scopeId = event.target.value; state.globalFilters.page = 1; renderBlackTable(); });
-  document.getElementById("recall-scope").innerHTML = '<option value="">全局</option>' + APPS.map(item => `<option value="${item.id}">${escapeHtml(item.name)}</option>`).join("");
-  document.getElementById("btn-recall-open").addEventListener("click", () => { if (permissions().canViewTerms) openModal("modal-recall"); });
-  document.getElementById("btn-recall-run").addEventListener("click", renderRecall);
-  for (const id of ["recall-scope", "recall-query"]) document.getElementById(id).addEventListener("input", () => { document.getElementById("recall-result").textContent = "范围或内容已更新，请重新查询。"; });
+  listScopePicker = createScopePicker(document.getElementById("list-scope-picker"), {
+    label: "应用范围筛选",
+    placeholder: "全部应用范围",
+    onChange(scopes) {
+      state.globalFilters.scopeKeys = scopes.map(scopeKey);
+      state.globalFilters.page = 1;
+      renderBlackTable();
+    },
+  });
+  termScopePicker = createScopePicker(document.getElementById("term-scope-picker"), {
+    label: "应用范围",
+    placeholder: "请选择应用范围",
+    onChange() { refreshTermValidation(); },
+  });
+  document.getElementById("btn-add-attribute").addEventListener("click", () => renderAttributes([...readAttributes(), { name: "", value: "" }]));
+  document.getElementById("term-attributes").addEventListener("input", () => refreshTermValidation());
+  document.getElementById("term-attributes").addEventListener("click", event => {
+    const button = event.target.closest("[data-remove-attribute]");
+    if (button) { button.closest(".attribute-row").remove(); refreshTermValidation(); }
+  });
+  document.getElementById("black-tbody").addEventListener("click", event => {
+    const button = event.target.closest("[data-open-agent]");
+    if (!button) return;
+    state.agentId = button.dataset.openAgent;
+    state.agentTab = "basic";
+    listScopePicker.close();
+    setPage("agent");
+  });
   document.getElementById("btn-black-add").addEventListener("click", () => openTermEditor({ source: "global" }));
   document.getElementById("btn-black-import").addEventListener("click", openImport);
   document.getElementById("btn-black-export").addEventListener("click", () => {
     const entries = searchEntries(state.entries, state.globalFilters).sort(byUpdatedDesc);
-    exportEntries(entries, "词条-全局");
+    exportEntries(entries, "词条");
   });
   document.getElementById("btn-black-audit").addEventListener("click", openAudit);
 
@@ -1235,11 +1236,6 @@ function bindEvents() {
     action?.();
   });
 
-  document.getElementById("term-scope-type").addEventListener("change", (event) => {
-    populateScopeTarget(event.target.value);
-    refreshTermValidation({ showErrors: false });
-  });
-  document.getElementById("term-scope-target").addEventListener("change", () => refreshTermValidation({ showErrors: false }));
   for (const id of ["term-name", "term-definition"]) {
     document.getElementById(id).addEventListener("input", () => refreshTermValidation({ showErrors: false }));
   }
@@ -1276,9 +1272,7 @@ function bindEvents() {
       openConfirm({
         title: "查看冲突词条",
         textHtml: "打开已有词条会离开当前填写内容，确认继续？",
-        extraHtml: '<div class="confirm-note">关闭已有词条后，可重新打开新增/编辑抽屉继续处理冲突。</div>',
         confirmText: "继续查看",
-        tone: "primary",
         onConfirm: () => {
           closeModal("modal-term");
           openTermEditor({ id: termId, readOnly: true, source: "global" });
@@ -1360,9 +1354,7 @@ function bindEvents() {
     openConfirm({
       title: "重置演示数据",
       textHtml: "确认清除本地演示中的词条、开关和变更记录？",
-      extraHtml: '<div class="confirm-note">页面会恢复到初始示例数据，刷新后仍然保持一致。</div>',
       confirmText: "重置",
-      tone: "danger",
       onConfirm: () => {
         localStorage.removeItem(STORAGE_KEY);
         localStorage.removeItem(LEGACY_STORAGE_KEY);
@@ -1380,7 +1372,6 @@ function init() {
   loadState();
   document.getElementById("identity-select").value = state.identity;
   document.getElementById("black-search").value = state.globalFilters.keyword;
-  document.getElementById("black-scope").value = state.globalFilters.scopeType;
   document.getElementById("black-status").value = state.globalFilters.status;
   bindEvents();
   applyPermissions();
