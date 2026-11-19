@@ -64,7 +64,7 @@ export function migrateEntry(entry) {
     scopes: normalizeScopes(scopes),
     status: entry.status === "disabled" ? "disabled" : "enabled",
     recallCount: Number.isSafeInteger(entry.recallCount) && entry.recallCount >= 0 ? entry.recallCount : 0,
-    operator: typeof entry.operator === "string" && entry.operator.trim() ? cleanText(entry.operator) : "现场工程师",
+    operator: "admin",
     createdAt: entry.createdAt,
     updatedAt: entry.updatedAt,
   };

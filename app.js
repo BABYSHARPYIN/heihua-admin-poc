@@ -16,9 +16,9 @@ import {
   validateBatch,
   compareEntries,
   definitionSummary,
-} from "./domain.mjs?v=20261119-records";
-import { INITIAL_ENTRIES } from "./data.mjs?v=20261119-records";
-import { createScopePicker } from "./scope-picker.mjs?v=20261119-records";
+} from "./domain.mjs?v=20261119-admin";
+import { INITIAL_ENTRIES } from "./data.mjs?v=20261119-admin";
+import { createScopePicker } from "./scope-picker.mjs?v=20261119-admin";
 
 const STORAGE_KEY = "heihua-admin-poc-state-v2";
 const LEGACY_STORAGE_KEY = "heihua-admin-poc-state-v1";
@@ -41,7 +41,7 @@ const AGENT_DESCRIPTIONS = {
   "app-service": "面向客户咨询、业务办理与投诉处理的专业 Agent。",
 };
 const GLOBAL_PAGE_SIZE = 8;
-const CURRENT_OPERATOR = "现场工程师";
+const CURRENT_OPERATOR = "admin";
 
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
@@ -97,7 +97,7 @@ function loadState() {
       const after = log.after ? migrateEntry(log.after) : null;
       const migrated = migrateEntry({ scopes: log.scopes, scope: log.scope });
       const { scope, ...rest } = log;
-      return migrated ? { ...rest, operator: log.operator || CURRENT_OPERATOR, scopes: migrated.scopes, before, after } : null;
+      return migrated ? { ...rest, operator: CURRENT_OPERATOR, scopes: migrated.scopes, before, after } : null;
     }).filter(Boolean);
     if (Array.isArray(saved.knowledgeBases)) {
       for (const kb of KNOWLEDGE_BASES) {
@@ -873,12 +873,6 @@ function confirmImport() {
 }
 
 /* ——— 变更记录 ——— */
-function canRollback(log) {
-  const latest = state.audit.find(item => item.termId === state.auditTermId);
-  if (log.termId !== state.auditTermId || latest?.id !== log.id || log.action === "回滚" || !log.termId) return false;
-  if (state.identity === "full") return true;
-  return false;
-}
 
 function renderAudit() {
   const logs = state.audit.filter(log => log.termId === state.auditTermId);
@@ -897,7 +891,7 @@ function renderAudit() {
   content.innerHTML = `
     <div class="audit-scroll">
       <table class="audit-table">
-        <thead><tr><th>时间</th><th>操作</th><th>词条</th><th>应用范围</th><th>操作人</th><th>操作</th></tr></thead>
+        <thead><tr><th>时间</th><th>操作</th><th>词条</th><th>应用范围</th><th>操作人</th></tr></thead>
         <tbody>${logs.map((log) => `
           <tr>
             <td class="nowrap">${escapeHtml(formatDateTime(log.at))}</td>
@@ -905,7 +899,6 @@ function renderAudit() {
             <td><div class="audit-term">${escapeHtml(log.termName || "—")}</div></td>
             <td>${escapeHtml(scopesLabel(log.scopes))}</td>
             <td>${escapeHtml(log.operator || CURRENT_OPERATOR)}</td>
-            <td class="nowrap">${canRollback(log) ? `<button class="btn-link" type="button" data-rollback-log="${escapeHtml(log.id)}">回滚</button>` : log.id === logs[0]?.id ? '<span class="muted">最近一次</span>' : '<span class="muted">—</span>'}</td>
           </tr>`).join("")}</tbody>
       </table>
     </div>`;
@@ -918,45 +911,6 @@ function openAudit(termId) {
   openModal("modal-audit");
 }
 
-function rollbackAudit(logId) {
-  const log = state.audit.find((item) => item.id === logId);
-  if (!log || !canRollback(log)) return;
-  const current = state.entries.find((item) => item.id === log.termId) || null;
-  const before = log.before ? { ...clone(log.before), operator: CURRENT_OPERATOR, updatedAt: new Date().toISOString() } : null;
-  const actionText = before
-    ? `恢复「${escapeHtml(before.name)}」到变更前版本`
-    : `移除本次新增的「${escapeHtml(log.termName)}」`;
-  openConfirm({
-    title: "回滚最近一次变更",
-    textHtml: `确认${actionText}？`,
-    confirmText: "确认回滚",
-    onConfirm: () => {
-      if (before) {
-        const validation = validateBatch([before.name], before, state.entries);
-        if (!validation.valid) { toast("当前应用范围存在冲突，无法回滚", "error"); return; }
-      }
-      if (before) {
-        const index = state.entries.findIndex((item) => item.id === log.termId);
-        if (index >= 0) state.entries[index] = clone(before);
-        else state.entries.push(clone(before));
-      } else {
-        state.entries = state.entries.filter((item) => item.id !== log.termId);
-      }
-      pushAudit({
-        action: "回滚",
-        termId: log.termId,
-        termName: before?.name || current?.name || log.termName,
-        scopes: before?.scopes || log.scopes,
-        before: current,
-        after: before,
-      });
-      saveState();
-      renderCurrentPage();
-      renderAudit();
-      toast("已回滚最近一次变更");
-    },
-  });
-}
 
 /* ——— 事件绑定与初始化 ——— */
 function updateIdentity(identity) {
@@ -1164,11 +1118,6 @@ function bindEvents() {
   });
   document.getElementById("btn-preview-import").addEventListener("click", previewImport);
   document.getElementById("btn-import-confirm").addEventListener("click", confirmImport);
-
-  document.getElementById("audit-content").addEventListener("click", (event) => {
-    const button = event.target.closest("[data-rollback-log]");
-    if (button) rollbackAudit(button.dataset.rollbackLog);
-  });
 
   document.getElementById("agent-list").addEventListener("click", (event) => {
     const button = event.target.closest("[data-agent-id]");
