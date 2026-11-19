@@ -6,75 +6,43 @@
   <meta name="description" content="智能问答平台 · 知识库级别黑话配置 POC" />
   <title>智能问答平台 · 黑话管理 POC</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23141414'/%3E%3Cpath d='M16 5 7 10v11l9 5 9-5V10l-9-5Zm0 11 9-5m-9 5-9-5m9 5v11' fill='none' stroke='white' stroke-width='1.5'/%3E%3C/svg%3E" />
-  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="style.css?v=20261119-live" />
+  <link rel="stylesheet" href="live.css?v=20261119-live" />
 </head>
 <body>
   <div class="app">
-    <aside class="sidebar">
-      <div class="sidebar-logo">
-        <div class="mark" aria-hidden="true">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.6">
-            <path d="M12 3 4 7.5v9L12 21l8-4.5v-9L12 3Z"/>
-            <path d="M12 12 4 7.5M12 12l8-4.5M12 12v9"/>
-          </svg>
-        </div>
-        <div class="logo-copy">
-          <div class="title">智能问答平台</div>
-          <div class="subtitle">管理后台</div>
-        </div>
-      </div>
-      <nav class="nav" aria-label="主导航">
-        <div class="nav-section">知识运营</div>
-        <button class="nav-item active" type="button" data-page="kb-list">
-          <span class="icon" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z"/></svg></span>
-          <span class="nav-text">知识库</span>
-        </button>
-        <button class="nav-item" type="button" data-page="agent">
-          <span class="icon" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="4" y="8" width="16" height="11" rx="2"/><path d="M12 8V5M9 5h6M9 13h.01M15 13h.01"/></svg></span>
-          <span class="nav-text">专业 Agent</span>
-        </button>
-        <div class="nav-section">黑话配置</div>
-        <button class="nav-item" type="button" data-page="blacktalk" id="nav-blacktalk">
-          <span class="icon" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v10Z"/><path d="M8 9h8M8 12.5h5"/></svg></span>
-          <span class="nav-text">黑话管理</span>
-        </button>
-      </nav>
-      <div class="sidebar-footer">
-        <button class="footer-link" type="button" id="btn-reset-demo">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2 6M20 4v7h-7"/></svg>
-          <span class="footer-copy">重置演示数据</span>
-        </button>
-        <div class="footer-user">
-          <div class="avatar" aria-hidden="true">知</div>
-          <div class="footer-copy">
-            <div class="footer-name">演示身份</div>
-            <div class="footer-mail">本地 Mock 数据</div>
-          </div>
-        </div>
-      </div>
-    </aside>
-
     <div class="main">
       <header class="topbar">
-        <div class="breadcrumb" id="breadcrumb" aria-label="面包屑"></div>
+        <div class="platform-name">智能问答平台</div>
+        <nav class="nav" aria-label="主导航">
+          <button class="nav-item active" type="button" data-page="kb-list"><span class="nav-icon nav-icon-book" aria-hidden="true"></span><span>知识库</span></button>
+          <button class="nav-item" type="button" data-page="agent-list"><span class="nav-icon nav-icon-agent" aria-hidden="true"></span><span>专业 Agent</span></button>
+          <button class="nav-item" type="button" data-page="blacktalk" id="nav-blacktalk"><span class="nav-icon nav-icon-terms" aria-hidden="true"></span><span>黑话管理</span></button>
+        </nav>
         <div class="topbar-right">
-          <div class="identity-box">
+          <details class="demo-account">
+            <summary aria-label="用户菜单"><span class="user-icon" aria-hidden="true"></span></summary>
+            <div class="account-menu">
+            <div class="identity-box">
             <label for="identity-select">身份</label>
             <select class="identity-select" id="identity-select" aria-label="切换演示身份">
-              <option value="full">黑话管理 + 全局</option>
-              <option value="kb">仅本库可写</option>
-              <option value="view">仅查看</option>
+              <option value="full">黑话查看 / 黑话管理 · 全局</option>
+              <option value="kb">黑话查看 / 黑话管理 · 本库</option>
+              <option value="view">黑话查看</option>
               <option value="none">无权限</option>
             </select>
-          </div>
-          <div class="avatar" title="当前为纯前端演示身份" aria-hidden="true">知</div>
+            </div>
+            <button class="btn-link" type="button" id="btn-reset-demo">重置演示数据</button>
+            </div>
+          </details>
         </div>
       </header>
 
       <main class="content">
+        <div class="breadcrumb sr-only" id="breadcrumb" aria-label="面包屑"></div>
         <!-- 知识库列表 -->
         <section class="page active" id="page-kb-list" aria-labelledby="kb-list-title">
-          <div class="page-heading">
+          <div class="page-heading sr-only">
             <div>
               <div class="eyebrow">知识运营</div>
               <h1 id="kb-list-title">知识库</h1>
@@ -83,35 +51,31 @@
             <div class="page-heading-meta" id="kb-list-meta">子范围优先于全局</div>
           </div>
           <div class="panel flex-panel">
-            <div class="toolbar">
+            <div class="toolbar resource-toolbar">
+              <div class="segmented" aria-label="知识库公开性筛选">
+                <button class="active" type="button" data-kb-visibility="all">全部</button>
+                <button type="button" data-kb-visibility="public">公开</button>
+                <button type="button" data-kb-visibility="restricted">私有</button>
+              </div>
+              <div class="toolbar-right">
+              <button class="btn btn-primary" type="button" id="btn-create-kb">创建<span aria-hidden="true">⌄</span></button>
               <label class="search-box" aria-label="搜索知识库">
-                <input class="input" id="kb-list-search" placeholder="搜索知识库名称或标识" autocomplete="off" />
+                <input class="input" id="kb-list-search" placeholder="搜索知识库" autocomplete="off" />
                 <span class="search-ico" aria-hidden="true"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></span>
               </label>
-              <span class="result-count" id="kb-list-count"></span>
+              </div>
+              <span class="result-count sr-only" id="kb-list-count"></span>
             </div>
             <div class="table-wrap">
-              <table class="data">
-                <thead>
-                  <tr>
-                    <th>名称</th>
-                    <th>资源标识</th>
-                    <th>说明</th>
-                    <th>本库词条</th>
-                    <th>公开性</th>
-                    <th>更新时间</th>
-                    <th>操作</th>
-                  </tr>
-                </thead>
-                <tbody id="kb-list-tbody"></tbody>
-              </table>
+              <h1 class="resource-section-title">知识库</h1>
+              <div class="knowledge-grid" id="kb-list-tbody"></div>
               <div class="empty-state" id="kb-list-empty" hidden>
                 <div class="ico">⌕</div>
                 <div>未找到匹配的知识库</div>
                 <p>换个关键词试试。</p>
               </div>
             </div>
-            <div class="table-footer">
+            <div class="table-footer sr-only">
               <span id="kb-list-footer-count"></span>
             </div>
           </div>
@@ -121,9 +85,8 @@
         <section class="page" id="page-kb-settings" aria-labelledby="settings-title">
           <div class="workspace-card">
             <aside class="settings-aside">
-              <button class="back-link" type="button" id="btn-back-kb-list">
+              <button class="back-link" type="button" id="btn-back-kb-list" aria-label="返回知识库">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
-                返回知识库
               </button>
               <div class="settings-summary">
                 <div class="kb-icon" aria-hidden="true">
@@ -131,17 +94,17 @@
                 </div>
                 <h2 id="settings-kb-name">设备运维知识库</h2>
                 <p id="settings-kb-description"></p>
-                <div class="meta-line mono" id="settings-kb-code"></div>
+                <div class="meta-line">关联应用数：1</div>
+                <div class="meta-line mono sr-only" id="settings-kb-code"></div>
               </div>
               <nav class="settings-nav" aria-label="知识库导航">
-                <button type="button">▤　文件</button>
-                <button type="button" class="active">⚙　设置</button>
+                <button type="button" id="btn-kb-files"><span class="nav-icon nav-icon-file" aria-hidden="true"></span>文件</button>
+                <button type="button" class="active" id="btn-kb-settings"><span class="nav-icon nav-icon-settings" aria-hidden="true"></span>设置</button>
               </nav>
             </aside>
             <main class="settings-main">
               <div class="settings-head">
-                <h1 id="settings-title">设置</h1>
-                <p>知识库资源设置与黑话配置。</p>
+                <h1 id="settings-title" class="sr-only">设置</h1>
                 <div class="kb-tabs" role="tablist" aria-label="知识库设置页签">
                   <button class="kb-tab" type="button" role="tab" data-kb-tab="basic" aria-selected="false">基本信息</button>
                   <button class="kb-tab" type="button" role="tab" data-kb-tab="visibility" aria-selected="false">公开性设置</button>
@@ -154,19 +117,18 @@
                 <div class="settings-body">
                   <div class="settings-section">
                     <h3>基本信息</h3>
-                    <div class="info-grid">
-                      <dl class="info-item"><dt>知识库名称</dt><dd id="basic-kb-name"></dd></dl>
-                      <dl class="info-item"><dt>资源标识</dt><dd class="mono" id="basic-kb-code"></dd></dl>
-                      <dl class="info-item"><dt>说明</dt><dd id="basic-kb-description"></dd></dl>
-                      <dl class="info-item"><dt>最近更新</dt><dd id="basic-kb-updated"></dd></dl>
+                    <div class="live-form">
+                      <div class="live-form-row"><label for="basic-kb-name"><span class="required">*</span> 知识库名称：</label><div><input class="input" id="basic-kb-name" /><p class="form-hint">支持中英文、数字、下划线及常见符号，不支持空格，全局唯一</p></div></div>
+                      <div class="live-form-row"><label for="basic-kb-description">知识库描述：</label><textarea class="textarea" id="basic-kb-description" rows="8"></textarea></div>
+                      <div class="live-form-row"><label for="basic-kb-label">知识库标签：</label><div><div class="label-toolbar"><button class="btn-link" type="button" data-demo-message="标签管理">前往标签管理</button><button class="btn-link" type="button" data-demo-message="添加标签">＋ 添加</button></div><div class="form-grid"><select class="input" id="basic-kb-label"><option>请选择标签</option><option>设备运维</option><option>安全规程</option></select><select class="input" aria-label="标签值"><option>请选择标签值</option></select></div></div></div>
+                      <div class="live-form-actions"><button class="btn" type="button" id="btn-reset-kb-basic">重置</button><button class="btn btn-primary" type="button" id="btn-save-kb-basic" data-kb-settings-write>保存</button></div>
                     </div>
+                    <span id="basic-kb-code" hidden></span><span id="basic-kb-updated" hidden></span>
                   </div>
-                  <div class="settings-section">
-                    <h3>范围优先级</h3>
-                    <div class="normalize-preview">
-                      <h4>子范围优先于全局</h4>
-                      <div>同一问法命中多条词条时，按「指定知识库 → 指定应用 → 全局」选择生效词条。跨范围允许同名或同别名，用于覆盖全局口径。</div>
-                    </div>
+                  <div class="settings-section associated-apps">
+                    <h3>关联应用</h3>
+                    <input class="input live-search" placeholder="搜索应用名称" aria-label="搜索关联应用" />
+                    <table class="data"><thead><tr><th>应用名称</th></tr></thead><tbody><tr><td id="kb-associated-app">设备运维助手</td></tr></tbody></table>
                   </div>
                 </div>
               </div>
@@ -175,44 +137,38 @@
                 <div class="settings-body">
                   <div class="settings-section">
                     <h3>公开性设置</h3>
-                    <div class="visibility-radios">
+                    <div class="visibility-radios"><div class="field-label">知识库访问权限</div>
                       <label class="vis-option">
                         <input type="radio" name="kb-visibility" value="restricted" checked />
-                        <span><strong>受限访问</strong><small>仅获得授权的应用和用户可以使用该知识库。</small></span>
+                        <span><strong>受限访问</strong><small>仅限明确授权的用户访问当前知识库。</small></span>
                       </label>
                       <label class="vis-option">
                         <input type="radio" name="kb-visibility" value="public" />
-                        <span><strong>公开访问</strong><small>平台内所有应用均可检索该知识库。</small></span>
+                        <span><strong>公开访问</strong><small>平台内所有用户，均可访问当前知识库。</small></span>
                       </label>
                     </div>
-                    <div class="mt-16"><button class="btn btn-primary" type="button" id="btn-save-visibility" data-kb-settings-write>保存公开性设置</button></div>
+                    <button class="btn btn-primary" type="button" id="btn-save-visibility" data-kb-settings-write hidden>保存公开性设置</button>
+                    <div class="toolbar member-toolbar"><input class="input live-search" placeholder="搜索用户名/姓名" aria-label="搜索成员" /><button class="btn btn-primary" type="button" id="btn-kb-add-member" data-kb-settings-write>添加成员</button></div>
+                    <table class="data"><thead><tr><th>账号</th><th>姓名</th><th>角色</th><th>操作</th></tr></thead><tbody><tr><td>demo</td><td>演示用户</td><td>所有者</td><td></td></tr></tbody></table>
+                    <div class="table-footer"><span></span><div class="pager"><button type="button" disabled>‹</button><button class="active" type="button">1</button><button type="button" disabled>›</button></div></div>
                   </div>
                 </div>
               </div>
 
               <div class="kb-tab-panel" id="kb-panel-files">
                 <div class="settings-body">
-                  <div class="settings-section">
-                    <h3>文件更新</h3>
-                    <div class="file-rule-row">
-                      <div><strong>更新方式</strong><small>文件内容变更后如何处理已建立的检索索引。</small></div>
-                      <div class="radio-group">
-                        <label class="radio-inline"><input type="radio" name="file-update" value="manual" checked />手动更新</label>
-                        <label class="radio-inline"><input type="radio" name="file-update" value="auto" />自动更新</label>
-                      </div>
-                    </div>
-                    <div class="file-rule-row">
-                      <div><strong>最近更新</strong><small>上次完成文件解析和索引更新的时间。</small></div>
-                      <div class="nowrap muted" id="files-last-updated">2026-11-18 10:32</div>
-                    </div>
-                    <div class="file-rule-row">
-                      <div><strong>索引状态</strong><small>当前演示数据为本地静态状态。</small></div>
-                      <div><span class="tag tag-green">已就绪</span></div>
-                    </div>
-                    <div class="mt-16"><button class="btn" type="button" id="btn-save-file-rule" data-kb-settings-write>保存文件更新设置</button></div>
+                  <div class="empty-state file-update-empty" id="file-update-empty"><div class="empty-illustration" aria-hidden="true"></div><h3>暂未配置</h3><p>还没有配置，<button class="btn-link" type="button" id="btn-configure-file-update">配置更新策略</button></p></div>
+                  <div class="settings-section live-form file-update-form" id="file-update-form" hidden>
+                    <div class="live-form-row"><label for="file-source">数据源：</label><select class="input" id="file-source" aria-label="数据源"><option>DCTM</option></select></div>
+                    <div class="live-form-row"><label for="file-path">文件路径：</label><input class="input" id="file-path" /></div>
+                    <div class="live-form-row"><label>更新周期：</label><div class="radio-group"><label><input type="radio" name="file-update" value="manual" checked />手动更新</label><label><input type="radio" name="file-update" value="daily" />每日</label><label><input type="radio" name="file-update" value="weekly" />每周</label><label><input type="radio" name="file-update" value="auto" />每月</label></div></div>
+                    <div class="live-form-actions"><button class="btn btn-primary" type="button" id="btn-save-file-rule" data-kb-settings-write>保存配置</button><button class="btn" type="button" id="btn-reset-file-rule">重置</button></div>
+                    <span id="files-last-updated" hidden></span>
                   </div>
                 </div>
               </div>
+
+              <div class="kb-tab-panel" id="kb-panel-documents"><div class="settings-body"><h2 class="resource-section-title">文件</h2><div class="toolbar"><input class="input live-search" placeholder="请输入搜索内容" aria-label="搜索文件" /><div class="toolbar-right"><button class="btn btn-primary" type="button" data-demo-message="上传文件">＋ 上传文件</button></div></div><div class="file-status-tabs">全部　　初始化　　待处理　　处理中　　已暂停　　成功　　失败　　删除中</div><table class="data"><thead><tr><th>文件名称</th><th>文件大小</th><th>上传时间</th><th>更新时间</th><th>状态</th><th>操作</th></tr></thead><tbody><tr><td>设备运维手册.pdf</td><td>0.1MB</td><td>2026/11/18 10:32:00</td><td>2026/11/18 10:32:22</td><td><span class="tag tag-green">成功</span></td><td><button class="btn-link" type="button" data-demo-message="查看文件">查看</button></td></tr></tbody></table></div></div>
 
               <div class="kb-tab-panel" id="kb-panel-blacktalk">
                 <div class="locked-scope-note" id="kb-locked-note">
@@ -269,8 +225,17 @@
         </section>
 
         <!-- 专业 Agent -->
+        <section class="page" id="page-agent-list" aria-labelledby="agent-list-title">
+          <div class="agent-breadcrumb">专业 Agent</div>
+          <div class="page-heading"><div><h1 id="agent-list-title">Agent列表</h1><p>用于管理各类专业Agent</p></div></div>
+          <div class="toolbar agent-resource-toolbar"><input class="input" id="agent-search" placeholder="搜索Agent名称/描述" aria-label="搜索Agent名称/描述" /><div class="toolbar-right"><button class="btn" type="button" data-demo-message="管理 Agent">管理</button><button class="btn btn-primary" type="button" data-demo-message="新建 Agent">＋ 新建 Agent</button></div></div>
+          <div class="agent-grid" id="agent-list"></div>
+          <div class="empty-state" id="agent-list-empty" hidden><div class="empty-illustration" aria-hidden="true"></div><div>暂无数据</div></div>
+          <div class="agent-list-pagination pager"><button type="button" disabled>‹</button><button class="active" type="button">1</button><button type="button" disabled>›</button></div>
+        </section>
         <section class="page" id="page-agent" aria-labelledby="agent-page-title">
-          <div class="page-heading">
+          <div class="agent-breadcrumb"><button class="btn-link" type="button" id="btn-back-agent-list">专业 Agent</button><span>›</span><span id="agent-title">设备运维助手</span><span class="agent-running">运行中</span></div>
+          <div class="page-heading sr-only">
             <div>
               <div class="eyebrow">Agent 中心</div>
               <h1 id="agent-page-title">专业 Agent</h1>
@@ -279,44 +244,38 @@
             <div class="page-heading-meta">配置即时生效</div>
           </div>
           <div class="agent-layout">
-            <aside class="panel agent-list-panel">
-              <div class="agent-list-head">
-                <h2>Agent 配置</h2>
-                <p>选择要配置的专业 Agent</p>
-              </div>
-              <div class="agent-list" id="agent-list" role="list"></div>
-            </aside>
             <section class="panel agent-config-panel">
               <div class="agent-config-head">
-                <div class="agent-config-title">
+                <div class="agent-config-title sr-only">
                   <div>
-                    <h1 id="agent-title">设备运维助手</h1>
                     <p id="agent-description">面向设备巡检、缺陷处置与检修场景的专业 Agent。</p>
                   </div>
                   <span class="tag tag-green">已启用</span>
                 </div>
                 <div class="agent-tabs" role="tablist" aria-label="Agent 设置页签">
-                  <button class="agent-tab" type="button" role="tab" data-agent-tab="basic" aria-selected="false">基本信息</button>
-                  <button class="agent-tab" type="button" role="tab" data-agent-tab="effect" aria-selected="false">效果设置</button>
-                  <button class="agent-tab" type="button" role="tab" data-agent-tab="kb" aria-selected="false">知识库</button>
+                  <button class="agent-tab" type="button" role="tab" data-agent-tab="basic" aria-selected="false">基础信息</button>
+                  <button class="agent-tab" type="button" role="tab" data-agent-tab="effect" aria-selected="false">Agent配置</button>
+                  <button class="agent-tab" type="button" role="tab" data-agent-tab="kb" aria-selected="false">权限设置</button>
                 </div>
+                <div class="toolbar-right"><button class="btn" type="button" id="btn-agent-cancel">取消</button><button class="btn btn-primary" type="button" id="btn-agent-save">保存并更新</button><button class="btn btn-primary" type="button" data-demo-message="下线 Agent">下线Agent</button></div>
               </div>
               <div class="agent-tab-panel" id="agent-panel-basic">
                 <div class="settings-group">
-                  <h3>基本信息</h3>
-                  <div class="info-grid">
-                    <dl class="info-item"><dt>Agent 名称</dt><dd id="agent-basic-name"></dd></dl>
-                    <dl class="info-item"><dt>应用说明</dt><dd id="agent-basic-description"></dd></dl>
-                    <dl class="info-item"><dt>状态</dt><dd><span class="tag tag-green">已启用</span></dd></dl>
-                    <dl class="info-item"><dt>对话效果</dt><dd>追问推荐、上传文件、黑话增强</dd></dl>
+                  <h3>基础信息</h3>
+                  <div class="live-form agent-basic-form">
+                    <div class="live-form-row"><label>Agent引擎：</label><div class="engine-card"><strong>Zenlix PRO</strong><p>创建更加灵活的通用 Agent</p></div></div>
+                    <div class="live-form-row"><label for="agent-basic-name">Agent名称：</label><input class="input" id="agent-basic-name" placeholder="请输入Agent名称" /></div>
+                    <div class="live-form-row"><label>Agent图标：</label><img class="agent-card-icon" src="assets/agent.svg" alt="Agent图标" /></div>
+                    <div class="live-form-row"><label for="agent-basic-description">Agent描述：</label><textarea class="textarea" id="agent-basic-description" rows="5"></textarea></div>
                   </div>
                 </div>
               </div>
               <div class="agent-tab-panel" id="agent-panel-effect">
+                <div class="agent-config-columns"><div class="agent-editor">
                 <div class="settings-group">
                   <h3>效果设置</h3>
                   <div class="switch-list">
-                    <div class="switch-row">
+                    <div class="switch-row followup-row">
                       <div class="switch-copy">
                         <strong>追问推荐</strong>
                         <small>当问题信息不足时，推荐下一步可追问的内容。</small>
@@ -326,7 +285,6 @@
                     <div class="switch-row">
                       <div class="switch-copy">
                         <strong>上传文件</strong>
-                        <small>允许用户上传文件，并结合文件内容进行回答。</small>
                       </div>
                       <button class="switch on" type="button" role="switch" aria-checked="true" aria-label="上传文件" id="switch-upload"></button>
                     </div>
@@ -340,7 +298,8 @@
                   </div>
                   <div class="help-inline mt-8" id="agent-write-note" hidden>当前身份仅可查看，效果设置不可修改。</div>
                 </div>
-                <div class="settings-group" id="agent-demo-group">
+                <div class="settings-group live-content-settings"><h3>内容设置</h3><div class="content-settings-card"><label for="agent-intro">Agent介绍 <span class="muted">ⓘ</span></label><input class="input" id="agent-intro" placeholder="请输入该Agent的介绍" /><div class="label-toolbar"><span>输入占位引导 <span class="muted">ⓘ</span></span><button class="btn-link" type="button" data-demo-message="输入占位引导">＋ 自定义</button></div><div>场景卡片 <span class="muted">ⓘ</span></div><button class="switch" type="button" role="switch" aria-label="场景卡片" aria-checked="false" id="switch-scenario"></button><div class="label-toolbar"><span>快捷指令</span><button class="btn-link" type="button" data-demo-message="快捷指令">＋ 添加</button></div></div></div>
+                <details class="settings-group agent-demo-details"><summary>黑话解析演示</summary><div id="agent-demo-group">
                   <h3>黑话解析演示</h3>
                   <div class="agent-demo">
                     <div class="agent-demo-head">
@@ -356,17 +315,23 @@
                     </div>
                     <div class="demo-result" id="demo-result" aria-live="polite"></div>
                   </div>
-                </div>
+                </div></details>
+                </div><aside class="agent-preview"><div class="preview-window-bar"><span></span><span></span><span></span></div><div class="preview-agent-name"><img src="assets/agent.svg" alt="" /><span id="preview-agent-name">设备运维助手</span></div><div class="preview-chat"><p id="preview-agent-intro">产品介绍将会作为副标题在此处展示</p><div class="preview-composer"><span>输入您当前遇到的问题，或尝试向我下达指令</span><div><span class="nav-icon nav-icon-mic" aria-hidden="true"></span><span class="nav-icon nav-icon-send" aria-hidden="true"></span></div></div><div class="suggested-questions"><div>猜你想问</div><div>猜你想问</div><div>猜你想问</div></div></div></aside></div>
               </div>
               <div class="agent-tab-panel" id="agent-panel-kb">
                 <div class="settings-group">
-                  <h3>关联知识库</h3>
+                  <h3>公开性设置</h3>
+                  <div class="visibility-radios"><label class="vis-option"><input type="radio" name="agent-visibility" checked /><span><strong>受限访问</strong><small>仅限明确授权的用户访问当前AI Agent</small></span></label><label class="vis-option"><input type="radio" name="agent-visibility" /><span><strong>公开访问</strong><small>平台内所有用户，均可访问当前AI Agent</small></span></label></div>
+                  <div class="toolbar member-toolbar"><input class="input live-search" placeholder="搜索用户名/姓名" aria-label="搜索 Agent 成员" /><button class="btn btn-primary" type="button" id="btn-agent-add-member">添加成员</button></div>
+                  <table class="data"><thead><tr><th>账号</th><th>姓名</th><th>角色</th><th>操作</th></tr></thead><tbody><tr><td>demo</td><td>演示用户</td><td>所有者</td><td></td></tr></tbody></table>
+                  <details class="associated-kb-details"><summary>关联知识库</summary>
                   <div class="info-grid">
                     <dl class="info-item"><dt>知识库</dt><dd id="agent-kb-name"></dd></dl>
                     <dl class="info-item"><dt>资源标识</dt><dd class="mono" id="agent-kb-code"></dd></dl>
                     <dl class="info-item"><dt>说明</dt><dd id="agent-kb-description"></dd></dl>
                     <dl class="info-item"><dt>黑话解析</dt><dd id="agent-kb-black-state">已开启</dd></dl>
                   </div>
+                  </details>
                 </div>
               </div>
             </section>
@@ -589,6 +554,13 @@
   </div>
 
   <!-- 确认 -->
+  <div class="modal-mask" id="modal-member">
+    <section class="modal" role="dialog" aria-modal="true" aria-labelledby="member-title">
+      <div class="modal-header"><h3 id="member-title">添加成员</h3><button class="btn-icon" type="button" data-close="modal-member" aria-label="关闭">✕</button></div>
+      <div class="modal-body"><div class="live-form-row"><label for="member-account"><span class="required">*</span> 账号</label><select class="input" id="member-account"><option value="">请选择账号</option><option value="viewer">演示查看用户</option></select></div><div class="live-form-row"><label for="member-role"><span class="required">*</span> 角色</label><select class="input" id="member-role"><option value="">请选择角色</option><option value="view">黑话查看</option><option value="manage">黑话管理</option></select></div><p class="form-hint">演示成员的黑话权限；当前身份可通过右上角用户菜单切换。</p><p class="field-error" id="member-error">请选择账号和角色</p></div>
+      <div class="modal-footer"><button class="btn" type="button" data-close="modal-member">取消</button><button class="btn btn-primary" type="button" id="btn-member-confirm">确定</button></div>
+    </section>
+  </div>
   <div class="modal-mask" id="modal-confirm">
     <div class="modal narrow" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
       <div class="modal-header">
@@ -608,6 +580,6 @@
 
   <div class="toast-wrap" id="toast-wrap" role="status" aria-live="polite"></div>
 
-  <script type="module" src="app.js"></script>
+  <script type="module" src="app.js?v=20261119-live"></script>
 </body>
 </html>
