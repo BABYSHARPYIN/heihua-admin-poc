@@ -1,4 +1,4 @@
-import { APPS, normalizeScopes, normalizeText, scopeKey, scopeLabel } from "./domain.mjs?v=20261119-delivery-multi";
+import { APPS, normalizeScopes, normalizeText, scopeKey, scopeLabel } from "./domain.mjs?v=20261119-records";
 
 export function createScopePicker(root, { label, placeholder, onChange }) {
   const options = [{ type: "global" }, ...APPS.map(app => ({ type: "app", id: app.id }))];

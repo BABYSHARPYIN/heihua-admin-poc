@@ -3,7 +3,7 @@ import { mkdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { importRowsToEntries } from "../domain.mjs";
 
-const screenshotDir = resolve(process.cwd(), "docs/screenshots/delivery");
+const screenshotDir = resolve(process.cwd(), "docs/screenshots/records-final");
 mkdirSync(screenshotDir, { recursive: true });
 
 async function open(page) {
@@ -27,6 +27,218 @@ async function picker(page, id) {
   await root.locator(".scope-picker-trigger").click();
   return root;
 }
+
+async function selectScopes(page, names) {
+  const root = await picker(page, "term-scope-picker");
+  for (const name of names) await root.getByRole("checkbox", { name, exact: true }).check();
+  await page.keyboard.press("Escape");
+}
+
+test("新增批量拆为独立记录，空值忽略，单条编辑保留次数", async ({ page }) => {
+  const errors = await open(page);
+  await terms(page);
+  await page.locator("#btn-black-add").click();
+  await expect(page.locator("#term-name")).toBeFocused();
+  await expect(page.locator("#term-form > .form-row")).toHaveCount(4);
+  await expect(page.locator("#term-form")).not.toContainText(/操作人|更新人|创建人/);
+  await page.locator("#btn-term-save").click();
+  await expect(page.locator("#err-term-name")).toHaveText("请填写词条");
+  await page.locator("#term-name").fill("现场甲");
+  await page.locator("#btn-add-term").click();
+  await page.locator("[data-term-input]").nth(1).fill("现场乙");
+  await page.locator("#btn-add-term").click();
+  await page.locator("[data-term-input]").nth(2).fill("待删除");
+  await page.getByRole("button", { name: "删除词条 3", exact: true }).click();
+  await page.locator("#btn-add-term").click();
+  await page.locator("#term-definition").fill("本次共享释义");
+  await selectScopes(page, ["全局", "设备运维助手", "安全规程助手"]);
+  await page.locator('input[name="term-status"][value="disabled"]').check();
+  await shot(page, "05-batch-create.png");
+  await page.locator("#btn-term-save").click();
+  await page.locator("#black-search").fill("本次共享释义");
+  const rows = page.locator("#black-tbody tr");
+  await expect(rows).toHaveCount(2);
+  await expect(rows.locator("td:first-child")).toHaveText(["现场甲", "现场乙"]);
+  for (const row of await rows.all()) {
+    await expect(row).toContainText("本次共享释义");
+    await expect(row.locator("td").nth(2)).toHaveText("全局、设备运维助手、安全规程助手");
+    await expect(row.locator("td").nth(4)).toHaveText("0");
+    await expect(row.locator(".status-disabled")).toBeVisible();
+  }
+  const records = await page.evaluate(() => JSON.parse(localStorage.getItem("heihua-admin-poc-state-v2")).entries.filter(entry => entry.name.startsWith("现场")));
+  expect(new Set(records.map(entry => entry.id)).size).toBe(2);
+  await rows.first().getByRole("button", { name: "编辑", exact: true }).click();
+  await expect(page.locator("#term-name")).toBeFocused();
+  await expect(page.locator("[data-term-input]")).toHaveCount(1);
+  await expect(page.locator("#btn-add-term")).toBeHidden();
+  await expect(page.locator("[data-remove-term]")).toHaveCount(0);
+  await page.locator("#term-name").fill("合并甲、合并乙");
+  await page.locator("#btn-term-save").click();
+  await expect(page.locator("#err-term-name")).toHaveText("每项只能填写一个词条");
+  await page.locator("#term-name").fill("现场甲更新");
+  await page.locator("#term-definition").fill("单条更新释义");
+  await shot(page, "06-single-edit.png");
+  await page.locator("#btn-term-save").click();
+  await page.reload({ waitUntil: "networkidle" });
+  await terms(page);
+  await page.locator("#black-search").fill("现场甲更新");
+  await expect(rows).toHaveCount(1);
+  await page.locator("#black-search").fill("现场乙");
+  await expect(rows).toHaveCount(1);
+  await expect(rows).toContainText("本次共享释义");
+  expect(errors).toEqual([]);
+});
+
+test("单条变更记录按ID隔离，同名不同范围也不会混入", async ({ page }) => {
+  await page.addInitScript(() => {
+    const entries = [
+      { id: "audit-a", name: "相同用语", definition: "甲释义", scopes: [{ type: "global" }], status: "enabled", recallCount: 100, operator: "工程师甲" },
+      { id: "audit-b", name: "相同用语", definition: "乙释义", scopes: [{ type: "app", id: "app-device" }], status: "enabled", recallCount: 90, operator: "工程师乙" },
+    ];
+    const audit = entries.map((entry, index) => ({ id: "audit-" + index, termId: entry.id, termName: entry.name, action: index ? "导入" : "新增", at: "2026-11-19T00:00:00Z", scopes: entry.scopes, operator: entry.operator, before: null, after: entry }));
+    localStorage.setItem("heihua-admin-poc-state-v2", JSON.stringify({ entries, audit, identity: "full" }));
+  });
+  const errors = await open(page);
+  await terms(page);
+  await page.locator("#black-tbody tr").first().getByRole("button", { name: "变更记录", exact: true }).click();
+  await expect(page.locator("#audit-content tbody tr")).toHaveCount(1);
+  await expect(page.locator("#audit-content")).toContainText("工程师甲");
+  await expect(page.locator("#audit-content")).not.toContainText("工程师乙");
+  await shot(page, "12-record-history.png");
+  await page.keyboard.press("Escape");
+  await page.locator("#black-tbody tr").nth(1).getByRole("button", { name: "变更记录", exact: true }).click();
+  await expect(page.locator("#audit-content tbody tr")).toHaveCount(1);
+  await expect(page.locator("#audit-content")).toContainText("工程师乙");
+  await expect(page.locator("#audit-content")).not.toContainText("工程师甲");
+  await expect(page.locator("#audit-content [data-rollback-log]")).toHaveCount(1);
+  expect(errors).toEqual([]);
+});
+
+test("释义摘要准确显示200字并追加三个英文点，完整内容仍可编辑", async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem("heihua-admin-poc-state-v2", JSON.stringify({ identity: "full", entries: [{ id: "long", name: "长释义词条", definition: "测".repeat(201), scopes: [{ type: "global" }], status: "enabled", recallCount: 66, operator: "现场工程师" }] })));
+  const errors = await open(page);
+  await terms(page);
+  await expect(page.locator(".definition-cell")).toHaveText("测".repeat(200) + "...");
+  await expect(page.locator("#black-tbody td").nth(6)).toHaveText("现场工程师");
+  await page.locator("#black-tbody").getByRole("button", { name: "编辑", exact: true }).click();
+  await expect(page.locator("#term-definition")).toHaveValue("测".repeat(201));
+  expect(errors).toEqual([]);
+});
+
+test("同批与已有冲突阻止保存，处理后简化停用删除确认可用", async ({ page }) => {
+  const errors = await open(page);
+  await terms(page);
+  await page.locator("#btn-black-add").click();
+  await expect(page.locator("#term-name")).toBeFocused();
+  await page.locator("#term-name").fill("五防");
+  await page.locator("#term-definition").fill("测试释义");
+  await selectScopes(page, ["全局"]);
+  await expect(page.locator("#term-conflicts")).toContainText("五防");
+  await expect(page.locator("#btn-term-save")).toBeDisabled();
+  await page.locator("#term-name").fill("待测甲");
+  await page.locator("#btn-add-term").click();
+  await page.locator("[data-term-input]").nth(1).fill("待测甲");
+  await expect(page.locator("#term-conflicts")).toContainText("待测甲");
+  await expect(page.locator("#btn-term-save")).toBeDisabled();
+  await shot(page, "07-batch-conflict.png");
+  await page.getByRole("button", { name: "删除词条 2", exact: true }).click();
+  await expect(page.locator("#btn-term-save")).toBeEnabled();
+  await page.locator("#btn-term-save").click();
+  await page.locator("#black-search").fill("待测甲");
+  const row = page.locator("#black-tbody tr");
+  await row.getByRole("button", { name: "停用", exact: true }).click();
+  await expect(page.locator("#modal-confirm .modal-body")).toHaveText("确认停用 「待测甲」？");
+  await expect(page.locator("#confirm-extra, #modal-confirm .confirm-warning")).toHaveCount(0);
+  await expect(page.locator("#btn-confirm-ok")).toHaveClass("btn btn-primary");
+  await shot(page, "08-disable-confirm.png");
+  await page.locator("#btn-confirm-ok").click();
+  await expect(row.locator(".status-disabled")).toBeVisible();
+  await row.getByRole("button", { name: "删除", exact: true }).click();
+  await expect(page.locator("#modal-confirm .modal-body")).toHaveText("确认删除 「待测甲」？");
+  await shot(page, "09-delete-confirm.png");
+  await page.locator("#btn-confirm-ok").click();
+  await expect(row).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
+test("导入顿号拆成独立记录，导出每条一行，冲突时原子阻止写入", async ({ page }) => {
+  const errors = await open(page);
+  await terms(page);
+  await page.locator("#btn-black-import").click();
+  await page.locator("#import-text").fill('词条,释义,应用范围,状态\n导入甲、、导入乙,共同释义,全局|设备运维助手,启用');
+  await page.locator("#btn-preview-import").click();
+  await expect(page.locator("#import-summary")).toContainText("通过 1 行");
+  await shot(page, "10-import-preview.png");
+  await page.locator("#btn-import-confirm").click();
+  await page.locator("#black-search").fill("导入");
+  await expect(page.locator("#black-tbody tr")).toHaveCount(2);
+  await expect(page.locator("#black-tbody td:first-child")).toHaveText(["导入甲", "导入乙"]);
+  const downloadPromise = page.waitForEvent("download");
+  await page.locator("#btn-black-export").click();
+  const download = await downloadPromise;
+  const csv = readFileSync(await download.path(), "utf8");
+  const parsed = importRowsToEntries(csv);
+  expect(csv.split(/\r?\n/)).toHaveLength(3);
+  expect(parsed.entries.map(entry => entry.name)).toEqual(["导入甲", "导入乙"]);
+  expect(parsed.entries.every(entry => entry.scopes.length === 2 && entry.recallCount === 0)).toBe(true);
+  await page.locator("#btn-black-import").click();
+  for (const value of ['词条,释义,应用范围,状态\n导入甲、新词,释义,全局,启用', '词条,释义,应用范围,状态\n新词、新词,释义,全局,启用']) {
+    await page.locator("#import-text").fill(value);
+    await page.locator("#btn-preview-import").click();
+    await expect(page.locator("#btn-import-confirm")).toBeDisabled();
+  }
+  await page.keyboard.press("Escape");
+  await page.locator("#black-search").fill("新词");
+  await expect(page.locator("#black-tbody tr")).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
+test("编辑保留次数且回滚可用，查看身份禁止写入", async ({ page }) => {
+  const errors = await open(page);
+  await terms(page);
+  const first = page.locator("#black-tbody tr").first();
+  const count = await first.locator("td").nth(4).innerText();
+  await first.getByRole("button", { name: "编辑", exact: true }).click();
+  await expect(page.locator("#term-name")).toBeFocused();
+  await page.locator("#term-definition").fill("更新后释义");
+  await page.locator("#btn-term-save").click();
+  await expect(first.locator("td").nth(4)).toHaveText(count);
+  await first.getByRole("button", { name: "变更记录", exact: true }).click();
+  await page.locator("[data-rollback-log]").first().click();
+  await page.locator("#btn-confirm-ok").click();
+  await page.keyboard.press("Escape");
+  await expect(first).not.toContainText("更新后释义");
+  await page.locator(".demo-account summary").click();
+  await page.locator("#identity-select").selectOption("view");
+  await page.locator(".demo-account summary").click();
+  await expect(page.locator("#btn-black-add")).toBeHidden();
+  await first.getByRole("button", { name: "查看", exact: true }).click();
+  await expect(page.locator("#btn-term-save")).toBeHidden();
+  await expect(page.locator("#term-name")).toHaveAttribute("readonly", "");
+  await expect(page.locator("#term-scope-picker .scope-picker-trigger")).toBeDisabled();
+  await shot(page, "11-readonly.png");
+  expect(errors).toEqual([]);
+});
+
+test("旧浏览器数据精简迁移，保留原模块设置和合法次数", async ({ page }) => {
+  await page.addInitScript(() => {
+    if (localStorage.getItem("heihua-admin-poc-state-v2")) return;
+    localStorage.setItem("heihua-admin-poc-state-v1", '{"identity":"full","entries":[{"id":"old","name":"旧词","aliases":["obsolete"],"attributes":[{"name":"removed","value":"OLD-1"}],"definition":"原释义","scope":{"type":"app","id":"app-device"},"status":"enabled","recallCount":27}],"switches":{"black":{"app-device":false}}}');
+  });
+  const errors = await open(page);
+  await terms(page);
+  await expect(page.locator("#black-tbody tr")).toContainText("旧词");
+  await expect(page.locator("#black-tbody tr td:nth-child(5)")).toHaveText("27");
+  await page.locator("#black-tbody").getByRole("button", { name: "编辑", exact: true }).click();
+  await expect(page.locator("#term-name")).toBeFocused();
+  await page.locator("#term-definition").fill("新释义");
+  await page.locator("#btn-term-save").click();
+  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem("heihua-admin-poc-state-v2")));
+  expect(Object.keys(saved.entries[0]).sort()).toEqual(["id", "name", "definition", "scopes", "status", "recallCount", "operator", "updatedAt"].sort());
+  expect(saved.entries[0].recallCount).toBe(27);
+  expect(saved.switches.black["app-device"]).toBe(false);
+  expect(errors).toEqual([]);
+});
 
 test("现网知识库设置保持原样，Agent 效果说明与同区样式一致", async ({ page }) => {
   const errors = await open(page);
@@ -68,27 +280,33 @@ test("现网知识库设置保持原样，Agent 效果说明与同区样式一�
   expect(errors).toEqual([]);
 });
 
-test("列表无功能演示或范围统计，表格保持纯文本，搜索分页可用", async ({ page }) => {
+test('列表列与次数排序、范围纯文本、搜索分页', async ({ page }) => {
   const errors = await open(page);
   await terms(page);
-  await expect(page.locator("#black-tbody tr")).toHaveCount(8);
-  await expect(page.locator("#page-terms th")).toHaveText(["词条名称", "别名", "释义", "可扩展属性", "应用范围", "状态", "更新时间", "操作"]);
-  await expect(page.locator("#terms-meta, #modal-recall, #btn-recall-open")).toHaveCount(0);
-  await expect(page.locator("#page-terms")).not.toContainText(/全局\s*\d|指定 Agent|召回/);
-  await expect(page.locator("#black-tbody label, #black-tbody .tag, #black-tbody .status")).toHaveCount(0);
-  const filterBox = await page.locator("#list-scope-picker").boundingBox();
-  const actionBox = await page.locator("#btn-black-audit").boundingBox();
-  expect(Math.abs(filterBox.y - actionBox.y)).toBeLessThan(2);
-  await shot(page, "03-term-list.png");
-  await page.getByRole("button", { name: "下一页" }).click();
-  await expect(page.locator("#black-footer-count")).toContainText("第 2 / 3 页");
-  await page.locator("#black-search").fill("不存在的词条");
-  await expect(page.locator("#black-empty")).toBeVisible();
-  await page.locator("#black-search").fill("SAFE-WF-008");
-  await expect(page.locator("#black-tbody tr")).toHaveCount(1);
-  await page.locator("#black-search").fill("");
-  await page.locator("#black-status").selectOption("disabled");
-  await expect(page.locator("#black-tbody .status-enabled")).toHaveCount(0);
+  await expect(page.locator('#page-terms th')).toHaveText(['词条', '释义', '应用范围', '状态', '召回次数', '更新时间', '操作人', '操作']);
+  await expect(page.locator('#page-terms .toolbar').getByRole('button', { name: '变更记录', exact: true })).toHaveCount(0);
+  const historyBox = await page.locator('#black-tbody tr').first().getByRole('button', { name: '变更记录', exact: true }).boundingBox();
+  expect(historyBox.x + historyBox.width).toBeLessThanOrEqual(1429);
+  await expect(page.locator('#black-tbody tr')).toHaveCount(8);
+  const counts = await page.locator('#black-tbody tr td:nth-child(5)').allTextContents();
+  expect(counts.map(Number)).toEqual([...counts.map(Number)].sort((first, second) => second - first));
+  await expect(page.locator('#black-tbody tr').first()).toContainText('五防');
+  await expect(page.locator('#black-tbody tr').nth(1)).toContainText('隔离开关');
+  const tied = page.locator('#black-tbody tr').filter({ hasText: '310' });
+  await expect(tied).toHaveCount(2);
+  await expect(tied.first()).toContainText('断路器');
+  await expect(page.locator('#black-tbody td:nth-child(3) button, #black-tbody td:nth-child(3) a, #black-tbody label, #black-tbody .tag')).toHaveCount(0);
+  await page.locator('#black-tbody td:nth-child(3)').nth(1).click();
+  await expect(page.locator('#page-terms')).toBeVisible();
+  await expect(page.locator('#page-terms')).not.toContainText(/全局\s*\d|指定 Agent|词条召回/);
+  await expect(page.locator('#modal-recall, #btn-recall-open, #terms-meta')).toHaveCount(0);
+  await shot(page, '03-term-list.png');
+  await page.getByRole('button', { name: '下一页' }).click();
+  await expect(page.locator('#black-footer-count')).toContainText('第 2 / 3 页');
+  await page.locator('#black-search').fill('明显断开点');
+  await expect(page.locator('#black-tbody tr')).toHaveCount(1);
+  await page.locator('#black-search').fill('SAFE-WF-008');
+  await expect(page.locator('#black-empty')).toBeVisible();
   expect(errors).toEqual([]);
 });
 
@@ -121,171 +339,5 @@ test("范围筛选可搜索、多选、混选和全选，搜索不改变全选�
   await page.keyboard.press("Escape");
   await expect(root.locator(".scope-picker-panel")).toBeHidden();
   await expect(root.locator(".scope-picker-trigger")).toBeFocused();
-  expect(errors).toEqual([]);
-});
-
-test("表单必选应用范围，混合多选及属性保存持久化，具体 Agent 可跳转", async ({ page }) => {
-  const errors = await open(page);
-  await terms(page);
-  await page.locator("#btn-black-add").click();
-  await expect(page.locator("#term-name")).toBeFocused();
-  await expect(page.locator("#term-form")).not.toContainText(/操作人|创建人|更新人/);
-  await page.locator("#term-name").fill("现场设备词条");
-  await page.locator("#term-definition").fill("现场设备的专业含义。");
-  await page.locator("#btn-term-save").click();
-  await expect(page.locator("#err-term-scopes")).toHaveText("请选择应用范围");
-  const root = await picker(page, "term-scope-picker");
-  await root.getByRole("checkbox", { name: "全局", exact: true }).check();
-  await root.getByRole("searchbox").fill("运维");
-  await root.getByRole("checkbox", { name: "设备运维助手", exact: true }).check();
-  await root.getByRole("searchbox").fill("安全");
-  await root.getByRole("checkbox", { name: "安全规程助手", exact: true }).check();
-  await root.getByRole("searchbox").fill("");
-  await shot(page, "11-editor-scope-picker.png");
-  await page.keyboard.press("Escape");
-  await expect(page.locator("#modal-term")).toHaveClass(/show/);
-  await page.locator("#alias-input").fill("现场简称");
-  await page.locator("#alias-input").press("Enter");
-  await page.locator("#btn-add-attribute").click();
-  await page.getByRole("textbox", { name: "属性名", exact: true }).fill("型号");
-  await page.locator("#btn-term-save").click();
-  await expect(page.locator("#err-term-attributes")).toContainText("属性值");
-  await page.getByRole("textbox", { name: "属性值", exact: true }).fill("A-100");
-  await page.locator("#btn-add-attribute").click();
-  await page.getByRole("textbox", { name: "属性名", exact: true }).nth(1).fill("分类");
-  await page.getByRole("textbox", { name: "属性值", exact: true }).nth(1).fill("设备");
-  await shot(page, "05-term-editor.png");
-  await page.locator("#btn-term-save").click();
-  await page.reload({ waitUntil: "networkidle" });
-  await terms(page);
-  await page.locator("#black-search").fill("A-100");
-  const row = page.locator("#black-tbody tr");
-  await expect(row).toHaveCount(1);
-  await expect(row).toContainText("全局、设备运维助手、安全规程助手");
-  await row.getByRole("button", { name: "编辑", exact: true }).click();
-  await expect(page.locator("#term-name")).toBeFocused();
-  const editRoot = await picker(page, "term-scope-picker");
-  for (const name of ["全局", "设备运维助手", "安全规程助手"]) await expect(editRoot.getByRole("checkbox", { name, exact: true })).toBeChecked();
-  await expect(editRoot.getByRole("checkbox", { name: "客户服务助手", exact: true })).not.toBeChecked();
-  await page.keyboard.press("Escape");
-  await page.getByRole("button", { name: "删除属性", exact: true }).last().click();
-  await page.locator("#btn-term-save").click();
-  await expect(row).not.toContainText("分类：设备");
-  await row.getByRole("button", { name: "设备运维助手", exact: true }).click();
-  await expect(page.locator("#agent-title")).toHaveText("设备运维助手");
-  expect(errors).toEqual([]);
-});
-
-test("多范围交集冲突与简化停用删除确认", async ({ page }) => {
-  const errors = await open(page);
-  await terms(page);
-  await page.locator("#btn-black-add").click();
-  await expect(page.locator("#term-name")).toBeFocused();
-  await page.locator("#term-name").fill("新隔离设备");
-  await page.locator("#term-definition").fill("隔离设备释义。");
-  const root = await picker(page, "term-scope-picker");
-  await root.getByRole("checkbox", { name: "设备运维助手", exact: true }).check();
-  await root.getByRole("checkbox", { name: "客户服务助手", exact: true }).check();
-  await page.keyboard.press("Escape");
-  await page.locator("#alias-input").fill("刀闸");
-  await page.locator("#alias-input").press("Enter");
-  await expect(page.locator("#term-conflicts")).toContainText("别名「刀闸」");
-  await expect(page.locator("#btn-term-save")).toBeDisabled();
-  await shot(page, "06-alias-conflict.png");
-  await page.locator("[data-conflict-remove-alias]").click();
-  await page.locator("#btn-term-save").click();
-  const row = page.locator("#black-tbody tr", { hasText: "新隔离设备" });
-  await row.getByRole("button", { name: "停用", exact: true }).click();
-  await expect(page.locator("#confirm-title")).toHaveText("停用词条");
-  await expect(page.locator("#modal-confirm .modal-body")).toHaveText("确认停用 「新隔离设备」？");
-  await expect(page.locator("#confirm-extra, #modal-confirm .confirm-warning")).toHaveCount(0);
-  await expect(page.locator("#btn-confirm-ok")).toHaveClass("btn btn-primary");
-  await shot(page, "07-disable-confirm.png");
-  await page.locator("#btn-confirm-ok").click();
-  await expect(row.locator(".status-disabled")).toBeVisible();
-  await row.getByRole("button", { name: "删除", exact: true }).click();
-  await expect(page.locator("#modal-confirm .modal-body")).toHaveText("确认删除 「新隔离设备」？");
-  await shot(page, "08-delete-confirm.png");
-  await page.locator("#btn-confirm-ok").click();
-  await expect(row).toHaveCount(0);
-  expect(errors).toEqual([]);
-});
-
-test("多范围属性导入导出、错误阻止写入、最近变更回滚", async ({ page }) => {
-  const errors = await open(page);
-  await terms(page);
-  await page.locator("#btn-black-import").click();
-  await page.locator("#import-text").fill('词条名称,别名,释义,可扩展属性,应用范围,状态\n跨范围设备,测试简称,测试释义,[],全局|设备运维助手|客户服务助手,启用');
-  await page.locator("#btn-preview-import").click();
-  await expect(page.locator("#import-summary")).toContainText("通过 1 行");
-  await shot(page, "09-import-preview.png");
-  await page.locator("#btn-import-confirm").click();
-  await page.locator("#black-search").fill("跨范围设备");
-  await expect(page.locator("#black-tbody tr")).toContainText("全局、设备运维助手、客户服务助手");
-  const downloadPromise = page.waitForEvent("download");
-  await page.locator("#btn-black-export").click();
-  const download = await downloadPromise;
-  const parsed = importRowsToEntries(readFileSync(await download.path(), "utf8"));
-  expect(parsed.allValid).toBe(true);
-  expect(parsed.rows[0].candidate.scopes).toHaveLength(3);
-  await page.locator("#btn-black-import").click();
-  await page.locator("#import-text").fill('词条名称,别名,释义,可扩展属性,应用范围,状态\n错误范围,,释义,[],未知Agent,启用');
-  await page.locator("#btn-preview-import").click();
-  await expect(page.locator("#btn-import-confirm")).toBeDisabled();
-  await expect(page.locator("#import-preview-body")).toContainText("未找到 Agent");
-  await page.keyboard.press("Escape");
-  await page.locator("#btn-black-audit").click();
-  await page.locator("[data-rollback-log]").first().click();
-  await page.locator("#btn-confirm-ok").click();
-  await page.keyboard.press("Escape");
-  await expect(page.locator("#black-tbody tr")).toHaveCount(0);
-  expect(errors).toEqual([]);
-});
-
-test("只读身份禁用多选与属性编辑，无权限身份隐藏入口", async ({ page }) => {
-  const errors = await open(page);
-  await terms(page);
-  await page.locator(".demo-account summary").click();
-  await page.locator("#identity-select").selectOption("view");
-  await page.locator(".demo-account summary").click();
-  await expect(page.locator("#btn-black-add")).toBeHidden();
-  await expect(page.locator("#btn-black-import")).toBeHidden();
-  await page.locator("#black-tbody tr").first().getByRole("button", { name: "查看", exact: true }).click();
-  await expect(page.locator("#btn-term-save")).toBeHidden();
-  await expect(page.locator("#term-scope-picker .scope-picker-trigger")).toBeDisabled();
-  await expect(page.getByRole("textbox", { name: "属性名", exact: true }).first()).toHaveAttribute("readonly", "");
-  await shot(page, "10-view-only.png");
-  await page.keyboard.press("Escape");
-  await page.locator(".demo-account summary").click();
-  await page.locator("#identity-select").selectOption("none");
-  await expect(page.locator("#nav-terms")).toBeHidden();
-  expect(errors).toEqual([]);
-});
-
-test("旧单范围与变更快照迁移，编辑多范围后可回滚", async ({ page }) => {
-  await page.addInitScript(() => {
-    if (localStorage.getItem("heihua-admin-poc-state-v2")) return;
-    localStorage.setItem("heihua-admin-poc-state-v1", JSON.stringify({ identity: "full", entries: [{ id: "old", name: "旧设备", code: "OLD-1", aliases: [], definition: "原释义", scope: { type: "app", id: "app-device" }, status: "enabled" }] }));
-  });
-  const errors = await open(page);
-  await terms(page);
-  const row = page.locator("#black-tbody tr");
-  await expect(row).toContainText("编码：OLD-1");
-  await row.getByRole("button", { name: "编辑", exact: true }).click();
-  await expect(page.locator("#term-name")).toBeFocused();
-  const root = await picker(page, "term-scope-picker");
-  await expect(root.getByRole("checkbox", { name: "设备运维助手", exact: true })).toBeChecked();
-  await root.getByRole("checkbox", { name: "全局", exact: true }).check();
-  await page.keyboard.press("Escape");
-  await page.locator("#btn-term-save").click();
-  await page.reload({ waitUntil: "networkidle" });
-  await terms(page);
-  await expect(row).toContainText("全局、设备运维助手");
-  await page.locator("#btn-black-audit").click();
-  await page.locator("[data-rollback-log]").first().click();
-  await page.locator("#btn-confirm-ok").click();
-  await page.keyboard.press("Escape");
-  await expect(row.locator("td").nth(4)).toHaveText("设备运维助手");
-  await expect(row).toContainText("编码：OLD-1");
   expect(errors).toEqual([]);
 });

@@ -1,106 +1,124 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { APPS, CSV_HEADERS, entriesToCsv, entryScopes, importRowsToEntries, migrateEntry, normalizeAliases, normalizeText, paginate, parseCsv, scopeKey, searchEntries, templateCsv, toCsv, validateEntry } from "../domain.mjs";
+import { APPS, CSV_HEADERS, compareEntries, definitionSummary, effectiveEntries, entriesToCsv, importRowsToEntries, migrateEntry, normalizeText, paginate, parseCsv, searchEntries, templateCsv, toCsv, validateBatch, validateEntry } from "../domain.mjs";
 import { INITIAL_ENTRIES } from "../data.mjs";
 
 const globalScope = { type: "global" };
 const deviceScope = { type: "app", id: "app-device" };
 const safetyScope = { type: "app", id: "app-safety" };
-const serviceScope = { type: "app", id: "app-service" };
-const candidate = (overrides = {}) => ({ id: "draft", name: "隔离开关", aliases: ["刀闸"], definition: "具有明显断开点的设备。", attributes: [], scopes: [globalScope], status: "enabled", ...overrides });
+const candidate = (overrides = {}) => ({ id: "draft", name: "隔离开关", definition: "具有明显断开点的设备。", scopes: [globalScope], status: "enabled", ...overrides });
 
-test("初始数据迁移为多范围，字段和同范围冲突校验正确", () => {
-  const entries = INITIAL_ENTRIES.map(migrateEntry);
-  for (const entry of entries) {
-    assert.equal(validateEntry(entry, entries).valid, true, entry.name);
-    assert.equal(Object.hasOwn(entry, "scope"), false);
-    assert.equal(Object.hasOwn(entry, "code"), false);
-    assert.ok(entry.scopes.length > 0);
+test("示例一条记录一个词条，次数有区分且所有记录合法", () => {
+  for (const entry of INITIAL_ENTRIES) {
+    assert.equal(validateEntry(entry, INITIAL_ENTRIES).valid, true, entry.name);
+    assert.equal(entry.name.includes("、"), false);
+    assert.ok(Number.isSafeInteger(entry.recallCount));
+    assert.deepEqual(Object.keys(entry).sort(), ["id", "name", "definition", "scopes", "status", "recallCount", "operator", "createdAt", "updatedAt"].sort());
   }
+  assert.ok(new Set(INITIAL_ENTRIES.map(entry => entry.recallCount)).size > 1);
 });
 
-test("应用范围支持全局、多 Agent 及混合，重复范围归一", () => {
-  for (const scopes of [[globalScope], [deviceScope, safetyScope], [globalScope, deviceScope, safetyScope]]) {
-    const result = validateEntry(candidate({ scopes }), []);
-    assert.equal(result.valid, true);
-    assert.deepEqual(result.normalized.scopes, scopes);
+test("默认次数降序，同次数更新时间降序", () => {
+  const entries = [{ id: "old", recallCount: 10, updatedAt: "2026-11-17" }, { id: "high", recallCount: 50, updatedAt: "2026-11-16" }, { id: "new", recallCount: 10, updatedAt: "2026-11-19" }, { id: "zero", updatedAt: "2026-11-20" }];
+  assert.deepEqual(entries.sort(compareEntries).map(entry => entry.id), ["high", "new", "old", "zero"]);
+});
+
+test("批量输入忽略空值，每个词条生成独立候选并共享本次配置", () => {
+  const common = { definition: "共同释义", scopes: [globalScope, deviceScope], status: "disabled" };
+  const result = validateBatch(["甲", "  ", "乙"], common, []);
+  assert.equal(result.valid, true);
+  assert.deepEqual(result.candidates.map(entry => entry.name), ["甲", "乙"]);
+  for (const entry of result.candidates) {
+    assert.equal(entry.definition, common.definition);
+    assert.deepEqual(entry.scopes, common.scopes);
+    assert.equal(entry.status, common.status);
   }
-  assert.deepEqual(validateEntry(candidate({ scopes: [deviceScope, deviceScope, globalScope] }), []).normalized.scopes, [deviceScope, globalScope]);
+  assert.equal(validateBatch(["", "  "], common, []).valid, false);
 });
 
-test("应用范围必填，拒绝知识库、无效 Agent 和畸形数据", () => {
-  for (const scopes of [[], undefined, "global", [null], [{ type: "kb", id: "kb-device" }], [{ type: "app", id: "missing" }], [{ type: "invalid" }]]) assert.ok(validateEntry(candidate({ scopes }), []).errors.scopes);
-  const result = validateEntry(candidate({ name: "", definition: "" }), []);
-  assert.equal(result.errors.name, "请填写词条名称");
-  assert.equal(result.errors.definition, "请填写释义");
+test("已有与同批词条冲突阻止保存，规范化后重复也阻止", () => {
+  const common = { definition: "释义", scopes: [globalScope], status: "enabled" };
+  assert.equal(validateBatch(["隔离开关", "新词"], common, [candidate({ id: "existing" })]).valid, false);
+  const duplicate = validateBatch(["ＣＴ", "ct"], common, []);
+  assert.equal(duplicate.valid, false);
+  assert.equal(duplicate.conflicts.length, 1);
+  assert.equal(normalizeText(" ＣＴ "), "ct");
+  assert.equal(validateEntry(candidate({ name: "甲、乙" }), []).valid, false);
+  assert.equal(validateEntry(candidate({ name: "甲\n乙" }), []).valid, false);
 });
 
-test("多个范围有交集时校验名称别名冲突，无交集可同名", () => {
+test("应用范围必填，混选去重与交集冲突保持", () => {
+  for (const scopes of [[], undefined, "global", [null], [{ type: "kb", id: "kb-device" }], [{ type: "app", id: "missing" }]]) assert.ok(validateEntry(candidate({ scopes }), []).errors.scopes);
+  const result = validateEntry(candidate({ scopes: [globalScope, deviceScope, deviceScope] }), []);
+  assert.deepEqual(result.normalized.scopes, [globalScope, deviceScope]);
   const existing = candidate({ id: "existing", scopes: [deviceScope, safetyScope] });
-  for (const scopes of [[deviceScope], [globalScope, safetyScope], [serviceScope, safetyScope]]) {
-    assert.equal(validateEntry(candidate({ scopes }), [existing]).valid, false);
-    assert.equal(validateEntry(candidate({ name: "刀闸", aliases: [], scopes }), [existing]).valid, false);
-    assert.equal(validateEntry(candidate({ name: "其他设备", scopes }), [existing]).valid, false);
-  }
-  assert.equal(validateEntry(candidate({ scopes: [serviceScope] }), [existing]).valid, true);
+  assert.equal(validateEntry(candidate({ scopes: [globalScope, deviceScope] }), [existing]).valid, false);
   assert.equal(validateEntry(candidate({ scopes: [globalScope] }), [existing]).valid, true);
   assert.equal(validateEntry(existing, [existing]).valid, true);
 });
 
-test("通用属性成对填写、名称不可重复，内容规范化", () => {
-  for (const attributes of [[{ name: "电压", value: "" }], [{ name: "", value: "220kV" }], [{ name: "型号", value: "A" }, { name: "型 号", value: "B" }], "不是数组"]) assert.ok(validateEntry(candidate({ attributes }), []).errors.attributes);
-  const result = validateEntry(candidate({ attributes: [{ name: " 型号 ", value: " A-100 " }] }), []);
-  assert.equal(result.valid, true);
-  assert.deepEqual(result.normalized.attributes, [{ name: "型号", value: "A-100" }]);
-  assert.equal(normalizeText(" ＣＴ 流变 "), "ct流变");
-  assert.deepEqual(normalizeAliases(["刀闸", "刀 闸", "ＤＳ", "ds"]), ["刀闸", "DS"]);
-});
-
-test("范围筛选取并集、空选和全选显示全部，词条不重复", () => {
-  const entries = [candidate({ id: "global" }), candidate({ id: "device", scopes: [deviceScope, serviceScope] }), candidate({ id: "safety", scopes: [safetyScope] })];
-  assert.deepEqual(searchEntries(entries, { scopeKeys: [] }).map(item => item.id), ["global", "device", "safety"]);
-  assert.deepEqual(searchEntries(entries, { scopeKeys: ["global", "app:app-device"] }).map(item => item.id), ["global", "device"]);
-  assert.deepEqual(searchEntries(entries, { scopeKeys: ["app:app-service", "app:app-device"] }).map(item => item.id), ["device"]);
+test("范围筛选取并集、空选和全选显示全部，搜索只匹配词条释义", () => {
+  const entries = [candidate({ id: "global" }), candidate({ id: "device", name: "设备词", scopes: [deviceScope, safetyScope] }), candidate({ id: "safety", name: "安全词", scopes: [safetyScope] })];
+  assert.equal(searchEntries(entries, { scopeKeys: [] }).length, 3);
+  assert.deepEqual(searchEntries(entries, { scopeKeys: ["global", "app:app-device"] }).map(entry => entry.id), ["global", "device"]);
+  assert.equal(searchEntries(entries, { scopeKeys: ["app:app-device", "app:app-safety"] }).length, 2);
   assert.equal(searchEntries(entries, { scopeKeys: ["global", ...APPS.map(app => `app:${app.id}`)] }).length, 3);
+  assert.equal(searchEntries(entries, { keyword: "明显断开点" }).length, 3);
+  assert.equal(searchEntries(entries, { keyword: "设备运维助手" }).length, 0);
   assert.equal(paginate(entries, 99, 2).page, 2);
 });
 
-test("搜索和状态筛选覆盖名称、别名、释义与属性", () => {
-  const entries = [candidate({ attributes: [{ name: "型号", value: "A-100" }] })];
-  for (const keyword of ["隔离开关", "刀闸", "明显断开点", "A-100", "型号"]) assert.equal(searchEntries(entries, { keyword }).length, 1);
-  assert.equal(searchEntries(entries, { status: "disabled" }).length, 0);
+test("CSV 四列，单元格多个词条展开成独立记录，空项忽略", () => {
+  const parsed = importRowsToEntries(toCsv([CSV_HEADERS, ["甲、、乙、", "共享释义", "全局|设备运维助手", "停用"]]));
+  assert.equal(parsed.allValid, true);
+  assert.deepEqual(parsed.entries.map(entry => entry.name), ["甲", "乙"]);
+  assert.equal(new Set(parsed.entries.map(entry => entry.id)).size, 2);
+  assert.ok(parsed.entries.every(entry => entry.definition === "共享释义" && entry.scopes.length === 2 && entry.status === "disabled" && entry.recallCount === 0));
+  assert.deepEqual(CSV_HEADERS, ["词条", "释义", "应用范围", "状态"]);
 });
 
-test("CSV 多范围与多属性完整往返，模板与表头一致", () => {
-  const source = candidate({ scopes: [globalScope, deviceScope, safetyScope], definition: '含逗号,引号"与\n换行', attributes: [{ name: "补充", value: 'A,B"C\nD' }] });
-  const csv = entriesToCsv([source]);
-  const parsed = importRowsToEntries(`\uFEFF${csv}`);
-  assert.equal(parsed.allValid, true);
-  assert.deepEqual(parsed.rows[0].candidate.scopes, source.scopes);
-  assert.deepEqual(parsed.rows[0].candidate.attributes, source.attributes);
+test("CSV 逐条导出和往返，模板一致，保留逗号引号换行", () => {
+  const source = [candidate({ name: "甲", definition: '含逗号,引号"与\n换行' }), candidate({ id: "other", name: "乙", scopes: [deviceScope] })];
+  const csv = entriesToCsv(source);
+  assert.equal(parseCsv(csv).length, 3);
   assert.deepEqual(parseCsv(csv)[0], CSV_HEADERS);
   assert.deepEqual(parseCsv(templateCsv())[0], CSV_HEADERS);
-  assert.deepEqual(CSV_HEADERS, ["词条名称", "别名", "释义", "可扩展属性", "应用范围", "状态"]);
-});
-
-test("CSV 范围错误、属性错误及同批交集冲突阻止全部导入", () => {
-  const rows = [CSV_HEADERS, ["新词条", "", "释义", "not-json", "全局", "启用"], ["新词条", "", "释义", "[]", "未知Agent", "启用"], ["新词条", "", "释义", "[]", "", "启用"]];
-  assert.equal(importRowsToEntries(toCsv(rows)).invalidCount, 3);
-  const duplicate = importRowsToEntries(entriesToCsv([candidate({ scopes: [deviceScope, safetyScope] }), candidate({ scopes: [safetyScope] })]));
-  assert.equal(duplicate.validCount, 1);
-  assert.equal(duplicate.allValid, false);
-  assert.equal(importRowsToEntries("旧表头,旧编码\n测试,A").headersOk, false);
-});
-
-test("旧文件和单范围数据迁移，不扩大未知范围或丢失编码", () => {
-  const oldHeader = ["词条名称", "别名", "释义", "\u4f5c\u7528\u8303\u56f4", "Agent名称", "状态"];
-  const parsed = importRowsToEntries(toCsv([oldHeader, ["旧设备", "旧别名", "释义", "指定 Agent", "设备运维助手", "启用"]]));
+  const parsed = importRowsToEntries(`\uFEFF${csv}`);
   assert.equal(parsed.allValid, true);
-  assert.deepEqual(parsed.rows[0].candidate.scopes, [deviceScope]);
-  const migrated = migrateEntry({ id: "old", name: "旧设备", aliases: [], definition: "释义", code: "OLD-1", scope: { type: "kb", id: "kb-device" } });
+  assert.deepEqual(parsed.entries.map(entry => entry.name), ["甲", "乙"]);
+  assert.equal(parsed.entries[0].definition, '含逗号,引号"与 换行');
+});
+
+test("导入现有冲突、同单元格及跨行冲突、无效范围全部阻止", () => {
+  for (const rows of [
+    [["甲、甲", "释义", "全局", "启用"]],
+    [["甲", "释义", "全局", "启用"], ["甲", "释义", "全局", "启用"]],
+    [["隔离开关、乙", "释义", "全局", "启用"]],
+    [["甲", "释义", "未知Agent", "启用"]],
+  ]) assert.equal(importRowsToEntries(toCsv([CSV_HEADERS, ...rows]), { entries: [candidate()] }).allValid, false);
+  assert.equal(importRowsToEntries("不支持的表头\n甲").headersOk, false);
+});
+
+test("旧浏览器记录转换为精简结构，保留次数、范围和更新时间", () => {
+  const raw = JSON.parse('{"id":"old","name":"旧词","definition":"释义","aliases":["obsolete"],"attributes":[{"name":"removed","value":"OLD-1"}],"code":"OLD","scope":{"type":"kb","id":"kb-device"},"recallCount":8,"updatedAt":"2026-11-19"}');
+  const migrated = migrateEntry(raw);
+  assert.deepEqual(Object.keys(migrated).sort(), ["id", "name", "definition", "scopes", "status", "recallCount", "operator", "createdAt", "updatedAt"].sort());
+  assert.equal(migrated.recallCount, 8);
   assert.deepEqual(migrated.scopes, [deviceScope]);
-  assert.deepEqual(migrated.attributes, [{ name: "编码", value: "OLD-1" }]);
-  assert.deepEqual(entryScopes(migrated), [deviceScope]);
-  assert.equal(migrateEntry({ scope: { type: "kb", id: "unknown" } }), null);
-  assert.equal(scopeKey(globalScope), "global");
+  assert.equal(migrateEntry({ ...raw, scope: { type: "kb", id: "unknown" } }), null);
+  assert.equal(migrateEntry({ ...raw, recallCount: -1 }).recallCount, 0);
+});
+
+test("释义摘要按字符截断200字，使用三个英文点结尾", () => {
+  assert.equal(definitionSummary("甲".repeat(200)), "甲".repeat(200));
+  assert.equal(definitionSummary("甲".repeat(201)), "甲".repeat(200) + "...");
+  assert.equal(definitionSummary("😀".repeat(201)), "😀".repeat(200) + "...");
+});
+
+test("启用状态与Agent开关共同决定生效，同词Agent配置优先", () => {
+  const entries = [candidate({ id: "global" }), candidate({ id: "direct", scopes: [deviceScope] }), candidate({ id: "disabled", name: "停用项", status: "disabled" })];
+  assert.deepEqual(effectiveEntries(entries, "app-device", false), []);
+  assert.deepEqual(effectiveEntries(entries, "app-device", true).map(entry => entry.id), ["direct"]);
+  assert.deepEqual(effectiveEntries(entries.map(entry => entry.id === "direct" ? { ...entry, status: "disabled" } : entry), "app-device", true).map(entry => entry.id), ["global"]);
+  assert.deepEqual(effectiveEntries(entries, "app-safety", true).map(entry => entry.id), ["global"]);
 });

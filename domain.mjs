@@ -15,7 +15,7 @@ export const STATUS_OPTIONS = [
   { value: "disabled", label: "停用" },
 ];
 
-export const CSV_HEADERS = ["词条名称", "别名", "释义", "可扩展属性", "应用范围", "状态"];
+export const CSV_HEADERS = ["词条", "释义", "应用范围", "状态"];
 
 export function normalizeText(value = "") {
   return String(value).normalize("NFKC").replace(/\s+/g, "").toLowerCase();
@@ -23,20 +23,6 @@ export function normalizeText(value = "") {
 
 export function cleanText(value = "") {
   return String(value).normalize("NFKC").trim().replace(/\s+/g, " ");
-}
-
-export function normalizeAliases(aliases) {
-  const list = Array.isArray(aliases) ? aliases : String(aliases || "").split(/[|;；]/);
-  const seen = new Set();
-  const result = [];
-  for (const raw of list) {
-    const value = cleanText(raw);
-    const key = normalizeText(value);
-    if (!key || seen.has(key)) continue;
-    seen.add(key);
-    result.push(value);
-  }
-  return result;
 }
 
 export function scopeKey(scope) {
@@ -71,10 +57,42 @@ export function migrateEntry(entry) {
   const legacyTargets = { "kb-device": "app-device", "kb-safety": "app-safety", "kb-service": "app-service" };
   const scopes = entryScopes(entry).map(scope => scope.type === "kb" && legacyTargets[scope.id] ? { type: "app", id: legacyTargets[scope.id] } : scope);
   if (!scopes.length || scopes.some(scope => scope.type !== "global" && !(scope.type === "app" && APPS.some(item => item.id === scope.id)))) return null;
-  const { code, scope, ...rest } = entry;
-  const attributes = Array.isArray(entry.attributes) ? entry.attributes.map(item => ({ name: cleanText(item?.name), value: String(item?.value ?? "").trim() })) : [];
-  if (code && !attributes.some(item => normalizeText(item.name) === "编码")) attributes.push({ name: "编码", value: String(code) });
-  return { ...rest, scopes: normalizeScopes(scopes), attributes, aliases: normalizeAliases(entry.aliases), status: entry.status === "disabled" ? "disabled" : "enabled" };
+  return {
+    id: entry.id,
+    name: cleanText(entry.name),
+    definition: cleanText(entry.definition),
+    scopes: normalizeScopes(scopes),
+    status: entry.status === "disabled" ? "disabled" : "enabled",
+    recallCount: Number.isSafeInteger(entry.recallCount) && entry.recallCount >= 0 ? entry.recallCount : 0,
+    operator: typeof entry.operator === "string" && entry.operator.trim() ? cleanText(entry.operator) : "现场工程师",
+    createdAt: entry.createdAt,
+    updatedAt: entry.updatedAt,
+  };
+}
+
+export function compareEntries(first, second) {
+  return (second.recallCount || 0) - (first.recallCount || 0)
+    || (Date.parse(second.updatedAt) || 0) - (Date.parse(first.updatedAt) || 0);
+}
+
+export function definitionSummary(definition = "") {
+  const characters = Array.from(String(definition));
+  return characters.length > 200 ? characters.slice(0, 200).join("") + "..." : characters.join("");
+}
+
+export function effectiveEntries(entries, appId, enhancementEnabled) {
+  if (!enhancementEnabled || !APPS.some(app => app.id === appId)) return [];
+  const selected = new Map();
+  for (const entry of entries) {
+    if (entry.status !== "enabled") continue;
+    const scopes = entryScopes(entry);
+    const direct = scopes.some(scope => scope.type === "app" && scope.id === appId);
+    if (!direct && !scopes.some(scope => scope.type === "global")) continue;
+    const key = normalizeText(entry.name);
+    const previous = selected.get(key);
+    if (!previous || direct && !previous.direct) selected.set(key, { entry, direct });
+  }
+  return [...selected.values()].map(item => item.entry);
 }
 
 export function statusLabel(status) {
@@ -93,25 +111,17 @@ export function validateEntry(candidate, entries) {
   const errors = {};
   const conflicts = [];
   const name = cleanText(candidate?.name);
-  const attributes = Array.isArray(candidate?.attributes) ? candidate.attributes.map(item => ({ name: cleanText(item?.name), value: String(item?.value ?? "").trim() })) : [];
   const definition = cleanText(candidate?.definition);
-  const aliases = normalizeAliases(candidate?.aliases);
   const scopes = entryScopes(candidate);
   const status = candidate?.status === "disabled" ? "disabled" : "enabled";
 
-  if (!name) errors.name = "请填写词条名称";
+  if (!name) errors.name = "请填写词条";
+  else if (/[、\r\n]/.test(String(candidate.name))) errors.name = "每项只能填写一个词条";
+  else if (name.length > 60) errors.name = "词条不能超过 60 个字符";
   if (!definition) errors.definition = "请填写释义";
   if (!scopes.length) errors.scopes = "请选择应用范围";
   if (scopes.some(scope => scope.type !== "global" && !(scope.type === "app" && APPS.some(item => item.id === scope.id)))) errors.scopes = "请选择有效的应用范围";
   if (candidate?.scopes !== undefined && !Array.isArray(candidate.scopes)) errors.scopes = "请选择有效的应用范围";
-  const propertyNames = new Set();
-  if (candidate?.attributes !== undefined && !Array.isArray(candidate.attributes)) errors.attributes = "可扩展属性必须为属性数组";
-  for (const attribute of attributes) {
-    const key = normalizeText(attribute.name);
-    if (!key || !attribute.value) errors.attributes = "每条属性必须填写属性名和属性值";
-    else if (propertyNames.has(key)) errors.attributes = "属性名不能重复";
-    propertyNames.add(key);
-  }
   if (!["enabled", "disabled"].includes(candidate?.status)) errors.status = "请选择状态";
 
   const others = (entries || []).filter((entry) => entry.id !== candidate?.id);
@@ -122,67 +132,13 @@ export function validateEntry(candidate, entries) {
   if (name) {
     const nameMatch = sameScope.find((entry) => normalizeText(entry.name) === normalizedName);
     if (nameMatch) {
-      errors.name = `同范围已存在词条名称「${nameMatch.name}」`;
+      errors.name = `同范围已存在词条「${nameMatch.name}」`;
       conflicts.push({
         field: "name",
         kind: "duplicate-name",
         termId: nameMatch.id,
         termName: nameMatch.name,
-        message: `同一应用范围内已存在词条名称「${nameMatch.name}」。`,
-      });
-    }
-    const aliasOwner = sameScope.find((entry) =>
-      normalizeAliases(entry.aliases).some((alias) => normalizeText(alias) === normalizedName),
-    );
-    if (aliasOwner && aliasOwner.id !== nameMatch?.id) {
-      conflicts.push({
-        field: "name",
-        kind: "name-is-alias",
-        termId: aliasOwner.id,
-        termName: aliasOwner.name,
-        message: `词条名称「${name}」与同范围词条「${aliasOwner.name}」的别名重复。`,
-      });
-    }
-  }
-
-  const aliasSeen = new Map();
-  for (const alias of aliases) {
-    const key = normalizeText(alias);
-    if (!key) continue;
-    if (key === normalizedName) {
-      conflicts.push({
-        field: "alias",
-        kind: "alias-is-name",
-        alias,
-        termId: candidate?.id,
-        termName: name || "当前词条",
-        message: `别名「${alias}」与当前词条名称相同，无需重复添加。`,
-      });
-      continue;
-    }
-    if (aliasSeen.has(key)) {
-      conflicts.push({
-        field: "alias",
-        kind: "duplicate-alias-input",
-        alias,
-        message: `别名「${aliasSeen.get(key)}」重复填写。`,
-      });
-      continue;
-    }
-    aliasSeen.set(key, alias);
-
-    const owner = sameScope.find((entry) => {
-      const entryKeys = [entry.name, ...normalizeAliases(entry.aliases)].map(normalizeText);
-      return entryKeys.includes(key);
-    });
-    if (owner) {
-      conflicts.push({
-        field: "alias",
-        kind: "alias-conflict",
-        alias,
-        termId: owner.id,
-        termName: owner.name,
-        message: `别名「${alias}」与同范围词条「${owner.name}」重复。`,
+        message: `同一应用范围内已存在词条「${nameMatch.name}」。`,
       });
     }
   }
@@ -191,7 +147,24 @@ export function validateEntry(candidate, entries) {
     valid: Object.keys(errors).length === 0 && conflicts.length === 0,
     errors,
     conflicts,
-    normalized: { name, attributes, aliases, definition, scopes, status },
+    normalized: { name, definition, scopes, status },
+  };
+}
+
+export function validateBatch(names, common, entries = []) {
+  const values = names.map(value => String(value ?? "")).filter(value => cleanText(value));
+  const staged = [...entries];
+  const results = (values.length ? values : [""]).map((name, index) => {
+    const candidate = { ...common, name, id: common.id || `draft-batch-${index}` };
+    const result = validateEntry(candidate, staged);
+    staged.push({ ...result.normalized, id: candidate.id });
+    return result;
+  });
+  return {
+    valid: results.every(result => result.valid),
+    errors: Object.assign({}, ...results.map(result => result.errors)),
+    conflicts: results.flatMap(result => result.conflicts),
+    candidates: values.length ? results.map(result => result.normalized) : [],
   };
 }
 
@@ -203,7 +176,7 @@ export function searchEntries(entries, filters = {}) {
     if (selected.size && !entryScopes(entry).some(scope => selected.has(scopeKey(scope)))) return false;
     if (status !== "all" && entry.status !== status) return false;
     if (!keyword) return true;
-    const haystack = [entry.name, entry.definition, ...(entry.aliases || []), ...(entry.attributes || []).flatMap(item => [item.name, item.value])]
+    const haystack = [entry.name, entry.definition]
       .map(normalizeText)
       .join("\n");
     return haystack.includes(keyword);
@@ -275,115 +248,47 @@ export function toCsv(rows) {
 
 export function importRowsToEntries(text, options = {}) {
   const rows = parseCsv(text);
-  if (!rows.length) {
-    return { rows: [], validCount: 0, invalidCount: 0, headersOk: false, error: "文件为空" };
-  }
-  const header = rows[0].map(value => cleanText(value).replace(/\u4f5c\u7528\u8303\u56f4/g, "应用范围"));
-  const headerOk = ["词条名称", "别名", "释义", "应用范围", "状态"].every(name => header.includes(name)) && new Set(header).size === header.length;
-  if (!headerOk) {
-    return {
-      rows: [],
-      validCount: 0,
-      invalidCount: 0,
-      headersOk: false,
-      error: `表头应包含：${CSV_HEADERS.join("、")}`,
-    };
+  const header = rows[0]?.map(cleanText) || [];
+  if (header.length !== CSV_HEADERS.length || !CSV_HEADERS.every(name => header.includes(name)) || new Set(header).size !== header.length) {
+    return { rows: [], validCount: 0, invalidCount: 0, headersOk: false, allValid: false, error: '表头应为：' + CSV_HEADERS.join('、') };
   }
   const index = Object.fromEntries(header.map((name, position) => [name, position]));
   const apps = options.apps || APPS;
-  const existing = [...(options.entries || [])];
-  const stagedEntries = [...existing];
+  const staged = [...(options.entries || [])];
   const preview = [];
-
   rows.slice(1).forEach((cells, position) => {
     const line = position + 2;
-    const raw = {
-      name: cells[index["词条名称"]] || "",
-      attributes: cells[index["可扩展属性"]] || "[]",
-      aliases: cells[index["别名"]] || "",
-      definition: cells[index["释义"]] || "",
-      scopeRaw: cells[index["应用范围"]] || "",
-      targetRaw: cells[index["Agent名称"]] || "",
-      statusRaw: cells[index["状态"]] || "",
-    };
     const errors = [];
-    if (cells.length !== header.length) errors.push(`列数应为 ${header.length} 列，实际 ${cells.length} 列`);
-    if (!cleanText(raw.name)) errors.push("词条名称为空");
-    if (!cleanText(raw.definition)) errors.push("释义为空");
-
-    const rangeValues = raw.scopeRaw.split("|").map(cleanText).filter(Boolean);
-    const legacyAgent = ["Agent", "指定 Agent"].includes(cleanText(raw.scopeRaw));
-    if (legacyAgent) rangeValues.splice(0, rangeValues.length, cleanText(raw.targetRaw));
+    if (cells.length !== header.length) errors.push('列数应为 ' + header.length + ' 列，实际 ' + cells.length + ' 列');
     const scopes = [];
-    if (!rangeValues.length || rangeValues.some(value => !value)) errors.push("请选择应用范围");
+    const rangeValues = (cells[index['应用范围']] || '').split('|').map(cleanText).filter(Boolean);
     for (const value of rangeValues) {
-      if (value === "全局") scopes.push({ type: "global" });
+      if (value === '全局') scopes.push({ type: 'global' });
       else {
-        const target = apps.find(item => item.id === value || item.name === value);
-        if (!target) errors.push(`未找到 Agent「${value}」`);
-        else scopes.push({ type: "app", id: target.id });
+        const target = apps.find(app => app.id === value || app.name === value);
+        if (!target) errors.push('未找到 Agent「' + value + '」');
+        else scopes.push({ type: 'app', id: target.id });
       }
     }
-
-    const statusKey = cleanText(raw.statusRaw);
-    let status = "";
-    if (statusKey === "启用") status = "enabled";
-    else if (statusKey === "停用") status = "disabled";
-    else errors.push("状态应为：启用 / 停用");
-
-    let attributes = [];
-    try {
-      attributes = JSON.parse(raw.attributes);
-      if (!Array.isArray(attributes)) errors.push("可扩展属性必须为 JSON 数组");
-    } catch {
-      errors.push("可扩展属性必须为有效的 JSON 数组");
-    }
-
-    const candidate = {
-      id: `import-${line}`,
-      name: cleanText(raw.name),
-      attributes: Array.isArray(attributes) ? attributes : [],
-      aliases: normalizeAliases(raw.aliases),
-      definition: cleanText(raw.definition),
-      scopes,
-      status: status || "enabled",
-    };
-
-    if (status) {
-      const validation = validateEntry(candidate, stagedEntries);
-      for (const message of Object.values(validation.errors)) errors.push(message);
-      for (const conflict of validation.conflicts) errors.push(conflict.message);
-      Object.assign(candidate, validation.normalized);
-    }
-
-    const uniqueErrors = [...new Set(errors)];
-    const valid = uniqueErrors.length === 0;
-    if (valid) stagedEntries.push(candidate);
-    preview.push({ line, raw, candidate, errors: uniqueErrors, valid });
+    const statusText = cleanText(cells[index['状态']]);
+    const status = statusText === '启用' ? 'enabled' : statusText === '停用' ? 'disabled' : '';
+    if (!status) errors.push('状态应为：启用 / 停用');
+    const names = String(cells[index['词条']] || '').split('、').map(cleanText).filter(Boolean);
+    const common = { definition: cells[index['释义']] || '', scopes, status };
+    const batch = validateBatch(names, common, staged);
+    const candidates = batch.candidates.map((candidate, itemIndex) => ({ ...candidate, id: 'import-' + line + '-' + itemIndex, recallCount: 0 }));
+    const uniqueErrors = [...new Set([...errors, ...Object.values(batch.errors), ...batch.conflicts.map(conflict => conflict.message)])];
+    staged.push(...candidates);
+    preview.push({ line, names, candidates, definition: cleanText(common.definition), scopes: normalizeScopes(scopes), status, errors: uniqueErrors, valid: uniqueErrors.length === 0 });
   });
-
-  const validCount = preview.filter((row) => row.valid).length;
-  return {
-    rows: preview,
-    validCount,
-    invalidCount: preview.length - validCount,
-    headersOk: true,
-    error: "",
-    allValid: preview.length > 0 && validCount === preview.length,
-  };
+  const validCount = preview.filter(row => row.valid).length;
+  return { rows: preview, validCount, invalidCount: preview.length - validCount, headersOk: true, error: '', allValid: preview.length > 0 && validCount === preview.length, entries: preview.flatMap(row => row.candidates) };
 }
 
 export function entriesToCsv(entries, apps = APPS) {
-  return toCsv([CSV_HEADERS, ...entries.map(entry => [
-    entry.name,
-    normalizeAliases(entry.aliases).join("|"),
-    entry.definition,
-    JSON.stringify(entry.attributes || []),
-    entryScopes(entry).map(scope => scopeLabel(scope, apps)).join("|"),
-    statusLabel(entry.status),
-  ])]);
+  return toCsv([CSV_HEADERS, ...entries.map(entry => [entry.name, entry.definition, scopesLabel(entryScopes(entry), apps).split('、').join('|'), statusLabel(entry.status)])]);
 }
 
 export function templateCsv() {
-  return entriesToCsv([{ name: "示例：隔离开关", aliases: ["示例：刀闸"], definition: "示例词条，导入前请删除本行。", attributes: [{ name: "设备类型", value: "隔离设备" }], scopes: [{ type: "app", id: "app-device" }], status: "enabled" }]);
+  return entriesToCsv([{ name: '示例：隔离开关', definition: '示例词条，导入前请删除本行。', scopes: [{ type: 'app', id: 'app-device' }], status: 'enabled' }]);
 }
