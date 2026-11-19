@@ -1,65 +1,44 @@
 # 智能问答平台 · 词条管理 POC
 
-词条与知识库并列作为 Agent 的信息源。词条只关联全局或指定 Agent；知识库保留原有设置能力，Agent 侧仅增加「词条增强」开关。
+词条与知识库并列作为 Agent 信息源。当前交付版本以 `docs/term-model.md` 为产品模型，以 `design-qa.md` 为验收记录。
 
-**在线演示：** https://babysharpyin.github.io/heihua-admin-poc/
+在线地址：https://babysharpyin.github.io/heihua-admin-poc/
 
-## 功能范围
+## 功能
 
-- 词条列表：名称、别名、释义、应用范围、状态、更新时间；范围以纯文本展示，不跳转 Agent。
-- 单条维护：词条名称、多个别名、释义、全局或指定 Agent 范围、状态；不提供补充属性或重复预览，保存后立即生效。
-- 校验：名称、释义必填，同范围名称与别名共用冲突空间。
-- 词条管理内召回：选择全局或具体 Agent；全局只查全局，Agent 合并自身及全局词条，同问法 Agent 优先，停用词条不召回。
-- 专业 Agent「效果设置」：词条增强默认开启；详情内没有词条召回演示或关联知识库关系区。
-- 停用、删除二次确认；CSV 导入先逐行预览校验，全部通过后原子写入。
-- 变更记录与最近一次变更回滚。
-- 身份演示：词条查看/词条管理、仅查看、无权限，入口位于右上角用户菜单。
+- 保留现网知识库和专业 Agent 外壳，知识库设置仅含基本信息、公开性设置、文件更新。
+- Agent 效果设置提供默认开启的词条增强，开关下显示专业用语说明。
+- 词条字段：名称、别名、释义、可扩展属性、应用范围、状态、更新时间；编码可作为普通属性。
+- 应用范围允许全局、多个 Agent、全局与多个 Agent 的组合。列表筛选和编辑表单复用可搜索多选控件；全选包含全局及所有 Agent，筛选空选显示全部。
+- 列表单元格使用普通文本，具体 Agent 名称可点击跳转，全局为纯文本。
+- 范围有交集时校验名称和别名冲突；属性名和值成对填写，同词条属性名不可重复。
+- 新增、编辑、停用、删除、CSV 导入导出、权限查看及最近一次变更回滚。确认框仅保留标题、确认句和按钮。
+- 不提供独立查询演示，无范围统计说明，词条表单不收集人员信息。
 
-CSV 字段：词条名称、别名、释义、作用范围、Agent名称、状态。别名以 `|` 分隔。下载模板与导出均使用六列结构；旧七列文件仍可导入，历史属性保留在本地存储，不在界面展示或编辑，也不进入新导出文件。
+## 导入导出
 
-旧浏览器数据在首次加载时迁移：原编码变成普通「编码」属性；原知识库范围转为先前示例对应的 Agent，不认识的旧范围不扩大成全局；旧本库可写身份降为仅查看。旧数据仍保留在旧存储键中，新操作使用 v2 存储。
+CSV 表头：`词条名称,别名,释义,可扩展属性,应用范围,状态`。
 
-本仓库是纯前端 POC，数据保存在浏览器 `localStorage`，不包含服务端和真实鉴权。
+多个别名或应用范围用 `|` 分隔，例如 `全局|设备运维助手|安全规程助手`。属性使用 JSON 数组，例如 `[{"name":"型号","value":"A-100"}]`。下载模板、示例和导出采用同一结构，导出遵循当前筛选结果。导入先预览校验，全部通过才写入。
 
-## 本地运行
+旧单范围浏览器数据和旧 CSV 可自动转换；旧编码保留为普通属性，已知历史知识库范围仅转为原对应 Agent，未知范围不扩大。变更快照一并迁移。权限包括词条查看、词条管理，旧知识库写身份降为仅查看。
+
+本仓库为纯前端 POC，数据保存在当前浏览器 `localStorage`，权限用于交互验证。
+
+## 运行与验证
 
 ```bash
 npm install
 npm run serve
-```
-
-打开 http://127.0.0.1:4173/。
-
-## 验证
-
-```bash
 npm run lint
 npm test
 npm run test:ui
 ```
 
-- `lint`：检查重复/缺失 DOM id、弹层目标、按钮类型、产品范围外文案、工具栏下拉约束、现网布局令牌、图标资源和导入示例表头。
-- `test`：覆盖规范化、冲突、分页、CSV、原子导入和范围优先级等领域规则。
-- `test:ui`：仅对本地 POC 使用 Playwright 回归主要流程，在 1429×878 视口生成本轮终态截图到 `docs/screenshots/terms-final/`。现网只使用用户本机 Chrome 的 Monavi。
+本地地址：http://127.0.0.1:4173/。UI 回归仅运行本地 POC；如需再次核对内网站点，使用本机已配对 Monavi。
 
-## 现网对照
-
-走查页面、视觉令牌和环境差异见 `docs/live-reference.md`；190 现网截图在 `docs/screenshots/live/190/`，同视口对照在 `docs/screenshots/comparison/`。实现沿用现网顶部导航、卡片列表、知识库侧栏/设置页签、Agent 双栏配置、表格、控件与弹层样式。权限演示在右上角用户菜单内。
-
-## 截图
-
-| 页面 | 截图 |
-| --- | --- |
-| 词条管理 | `docs/screenshots/terms-final/01-global-list.png` |
-| 别名冲突校验 | `docs/screenshots/terms-final/02-alias-conflict.png` |
-| 导入预览 | `docs/screenshots/terms-final/04-import-preview.png` |
-| 精简编辑 | `docs/screenshots/terms-final/05-simple-editor.png` |
-| 指定 Agent 召回 | `docs/screenshots/terms-final/06-recall-agent.png` |
-| Agent 词条增强 | `docs/screenshots/terms-final/14-agent-config.png` |
-| 具体 Agent 筛选 | `docs/screenshots/terms-final/15-agent-scope-filter.png` |
-
-之前 `docs/screenshots/final/` 和历史设计文档仅用于记录前轮方案；本轮产品口径及验收以 `docs/term-model.md` 和 `design-qa.md` 为准。
+终态截图在 `docs/screenshots/delivery/`：知识库设置、Agent 效果说明、词条列表、范围筛选、词条编辑、冲突、停用/删除确认、导入和只读状态。`docs/screenshots/live/190/` 为已保存现网依据，其他截图与历史方案仅记录前轮版本。
 
 ## 发布
 
-源码位于 `feat/heihua-config`，静态站点发布到 `gh-pages` 分支根目录，GitHub Pages 使用 legacy source（`gh-pages` / `/`）。
+源码分支：`feat/heihua-config`。静态站点发布到 `gh-pages` 根目录，GitHub Pages 使用 legacy source（`gh-pages` / `/`）。发布文件包含 `index.html`、`app.js`、`domain.mjs`、`data.mjs`、`scope-picker.mjs`、两个样式文件、`assets/` 及 `.nojekyll`。

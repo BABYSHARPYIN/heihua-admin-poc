@@ -9,6 +9,7 @@ const app = readFileSync(resolve(root, "app.js"), "utf8");
 const css = readFileSync(resolve(root, "style.css"), "utf8");
 const liveCss = readFileSync(resolve(root, "live.css"), "utf8");
 const domain = readFileSync(resolve(root, "domain.mjs"), "utf8");
+const picker = readFileSync(resolve(root, "scope-picker.mjs"), "utf8");
 
 const failures = [];
 function check(condition, message) {
@@ -16,7 +17,13 @@ function check(condition, message) {
 }
 
 check(!/优先于全局|同问法优先|本演示|无审核环节|全局仅查询全局词条/.test(html + app), "交付界面不得包含实现规则、演示说明或流程解释；保留字段、校验及操作反馈");
-check(!/可扩展属性|补充属性|term-attributes|normalize-preview|词条预览/.test(html), "词条维护仅保留名称、别名、释义、范围和状态，不增加属性或重复预览");
+check(!/normalize-preview|词条预览/.test(html), "词条表单不得增加重复预览");
+check(html.includes('id="term-attributes"'), "通用属性编辑必须保留");
+check(!/recall|resolveTerms|召回/.test(html + app + domain + liveCss + css + picker), "交付版本不得保留查询演示入口、交互、实现或样式");
+check(!/terms-meta|全局\s*\$\{|指定 Agent\s*\$\{/.test(html + app), "不得展示范围统计说明");
+check(!/\u9ed1\u8bdd|\u4f5c\u7528\u8303\u56f4/.test(html + app + domain), "产品文案必须统一为词条管理、词条增强和应用范围");
+const termForm = html.match(/<form id="term-form"[\s\S]*?<\/form>/)?.[0] || "";
+check(!/操作人|更新人|创建人/.test(termForm), "词条表单不得收集人员信息");
 
 const ids = [...html.matchAll(/\bid="([^"]+)"/g)].map((match) => match[1]);
 const duplicateIds = [...new Set(ids.filter((id, index) => ids.indexOf(id) !== index))];
@@ -56,6 +63,11 @@ const localAssets = [...html.matchAll(/(?:src|href)="([^"]+)"/g)]
 for (const asset of localAssets) {
   check(existsSync(resolve(root, asset)), `页面引用了不存在的本地资源：${asset}`);
 }
+for (const source of [app, picker]) {
+  for (const match of source.matchAll(/from "\.\/([^"?]+)(?:\?[^"\n]*)?"/g)) {
+    check(existsSync(resolve(root, match[1])), `模块引用了不存在的资源：${match[1]}`);
+  }
+}
 
 const filterRule = css.match(/\.toolbar select\.filter-select\s*\{([^}]+)\}/)?.[1] || "";
 check(/width:\s*auto/.test(filterRule), "工具栏筛选下拉必须显式 width:auto，避免被 .input 的 100% 覆盖");
@@ -67,11 +79,12 @@ check(domain.includes('export const CSV_HEADERS'), "domain.mjs 必须统一维�
 check(app.includes("confirmImport") && app.includes("importRowsToEntries"), "导入流程必须经过预览校验和确认写入");
 check(app.includes("canViewTerms") && app.includes("canWriteGlobal"), "词条查看和管理权限必须生效");
 check(!/kb-panel-(?:terms|blacktalk)|kb-black-|data-kb-tab="(?:terms|blacktalk)"/.test(html + app), "知识库不得保留词条页签或知识库级词条能力");
-check(!/agent-demo|agent-kb-name|demo-query/.test(html + app), "Agent 详情不得展示词条召回演示或关联知识库来表达词条关系");
-check(!/规范名|规范编码|指定知识库|黑话管理|黑话增强/.test(html + app), "界面不得残留旧功能名、专用字段或知识库词条范围");
+check(!/agent-demo|agent-kb-name|demo-query/.test(html + app), "Agent 详情仅保留词条增强配置");
+check(!/规范名|规范编码|指定知识库/.test(html + app), "界面不得残留专用字段或知识库词条范围");
 check(!/scope:\s*\{\s*type:\s*"kb"/.test(readFileSync(resolve(root, "data.mjs"), "utf8")), "示例词条不得关联知识库");
-check(!/data-open-agent|scope-link/.test(app + html + liveCss), "应用范围仅为文本，不得保留 Agent 跳转或链接样式");
-check(html.includes('id="recall-scope"'), "管理页召回范围选择必须保留");
+check(app.includes("data-open-agent"), "应用范围中的 Agent 应支持跳转");
+check(html.includes('id="list-scope-picker"') && html.includes('id="term-scope-picker"'), "列表和表单必须复用应用范围多选组件");
+check(html.includes("开启后，问答将依据已配置词条理解专业用语。"), "词条增强说明文案必须保留");
 check(!html.includes('class="sidebar"'), "现网主导航为顶部横向导航，不得恢复全局侧栏");
 check(/src="app\.js\?v=/.test(html), "静态发布入口必须带资源版本号，避免新 HTML 与旧 JS 混用");
 check(html.includes('class="knowledge-grid"') && html.includes('class="agent-grid"'), "知识库和专业 Agent 必须保留现网卡片列表");

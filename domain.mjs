@@ -10,17 +10,12 @@ export const KNOWLEDGE_BASES = [
   { id: "kb-service", name: "客户服务知识库", code: "KB-SERVICE", description: "服务话术、业务办理与投诉处理。" },
 ];
 
-export const SCOPE_TYPES = [
-  { value: "global", label: "全局" },
-  { value: "app", label: "指定 Agent" },
-];
-
 export const STATUS_OPTIONS = [
   { value: "enabled", label: "启用" },
   { value: "disabled", label: "停用" },
 ];
 
-export const CSV_HEADERS = ["词条名称", "别名", "释义", "作用范围", "Agent名称", "状态"];
+export const CSV_HEADERS = ["词条名称", "别名", "释义", "可扩展属性", "应用范围", "状态"];
 
 export function normalizeText(value = "") {
   return String(value).normalize("NFKC").replace(/\s+/g, "").toLowerCase();
@@ -44,42 +39,42 @@ export function normalizeAliases(aliases) {
   return result;
 }
 
-export function normalizeScope(scope) {
-  const type = scope?.type || "global";
-  if (type === "global") return { type: "global" };
-  return { type, id: scope?.id || "" };
-}
-
 export function scopeKey(scope) {
-  const normalized = normalizeScope(scope);
-  return normalized.type === "global" ? "global" : `${normalized.type}:${normalized.id}`;
-}
-
-export function scopeTypeLabel(type) {
-  return SCOPE_TYPES.find((item) => item.value === type)?.label || "全局";
-}
-
-export function targetName(scope, apps = APPS) {
-  return apps.find(item => item.id === scope?.id)?.name || "未选择 Agent";
+  return scope?.type === "global" ? "global" : `${scope?.type}:${scope?.id || ""}`;
 }
 
 export function scopeLabel(scope, apps = APPS) {
-  return scope?.type === "global" ? "全局" : targetName(scope, apps);
+  return scope?.type === "global" ? "全局" : apps.find(item => item.id === scope?.id)?.name || "未选择 Agent";
+}
+
+export function normalizeScopes(scopes) {
+  if (!Array.isArray(scopes)) return [];
+  const unique = new Map();
+  for (const scope of scopes) {
+    if (!scope || typeof scope !== "object") continue;
+    const normalized = scope.type === "global" ? { type: "global" } : { type: scope.type, id: scope.id || "" };
+    unique.set(scopeKey(normalized), normalized);
+  }
+  return [...unique.values()];
+}
+
+export function entryScopes(entry) {
+  return normalizeScopes(entry?.scopes ?? (entry?.scope ? [entry.scope] : []));
+}
+
+export function scopesLabel(scopes, apps = APPS) {
+  return normalizeScopes(scopes).map(scope => scopeLabel(scope, apps)).join("、");
 }
 
 export function migrateEntry(entry) {
   if (!entry || typeof entry !== "object") return null;
   const legacyTargets = { "kb-device": "app-device", "kb-safety": "app-safety", "kb-service": "app-service" };
-  let scope = entry.scope;
-  if (scope?.type === "kb") {
-    if (!legacyTargets[scope.id]) return null;
-    scope = { type: "app", id: legacyTargets[scope.id] };
-  }
-  if (scope?.type !== "global" && !(scope?.type === "app" && APPS.some(item => item.id === scope.id))) return null;
-  const { code, ...rest } = entry;
+  const scopes = entryScopes(entry).map(scope => scope.type === "kb" && legacyTargets[scope.id] ? { type: "app", id: legacyTargets[scope.id] } : scope);
+  if (!scopes.length || scopes.some(scope => scope.type !== "global" && !(scope.type === "app" && APPS.some(item => item.id === scope.id)))) return null;
+  const { code, scope, ...rest } = entry;
   const attributes = Array.isArray(entry.attributes) ? entry.attributes.map(item => ({ name: cleanText(item?.name), value: String(item?.value ?? "").trim() })) : [];
   if (code && !attributes.some(item => normalizeText(item.name) === "编码")) attributes.push({ name: "编码", value: String(code) });
-  return { ...rest, scope, attributes, aliases: normalizeAliases(entry.aliases), status: entry.status === "disabled" ? "disabled" : "enabled" };
+  return { ...rest, scopes: normalizeScopes(scopes), attributes, aliases: normalizeAliases(entry.aliases), status: entry.status === "disabled" ? "disabled" : "enabled" };
 }
 
 export function statusLabel(status) {
@@ -101,13 +96,14 @@ export function validateEntry(candidate, entries) {
   const attributes = Array.isArray(candidate?.attributes) ? candidate.attributes.map(item => ({ name: cleanText(item?.name), value: String(item?.value ?? "").trim() })) : [];
   const definition = cleanText(candidate?.definition);
   const aliases = normalizeAliases(candidate?.aliases);
-  const scope = normalizeScope(candidate?.scope);
+  const scopes = entryScopes(candidate);
   const status = candidate?.status === "disabled" ? "disabled" : "enabled";
 
   if (!name) errors.name = "请填写词条名称";
   if (!definition) errors.definition = "请填写释义";
-  if (!candidate?.scope || !["global", "app"].includes(scope.type)) errors.scope = "请选择全局或指定 Agent";
-  if (scope.type === "app" && !APPS.some(item => item.id === scope.id)) errors.scope = "请选择有效的 Agent";
+  if (!scopes.length) errors.scopes = "请选择应用范围";
+  if (scopes.some(scope => scope.type !== "global" && !(scope.type === "app" && APPS.some(item => item.id === scope.id)))) errors.scopes = "请选择有效的应用范围";
+  if (candidate?.scopes !== undefined && !Array.isArray(candidate.scopes)) errors.scopes = "请选择有效的应用范围";
   const propertyNames = new Set();
   if (candidate?.attributes !== undefined && !Array.isArray(candidate.attributes)) errors.attributes = "可扩展属性必须为属性数组";
   for (const attribute of attributes) {
@@ -119,7 +115,8 @@ export function validateEntry(candidate, entries) {
   if (!["enabled", "disabled"].includes(candidate?.status)) errors.status = "请选择状态";
 
   const others = (entries || []).filter((entry) => entry.id !== candidate?.id);
-  const sameScope = others.filter((entry) => scopeKey(entry.scope) === scopeKey(scope));
+  const keys = new Set(scopes.map(scopeKey));
+  const sameScope = others.filter(entry => entryScopes(entry).some(scope => keys.has(scopeKey(scope))));
   const normalizedName = normalizeText(name);
 
   if (name) {
@@ -131,7 +128,7 @@ export function validateEntry(candidate, entries) {
         kind: "duplicate-name",
         termId: nameMatch.id,
         termName: nameMatch.name,
-        message: `同一作用范围内已存在词条名称「${nameMatch.name}」。`,
+        message: `同一应用范围内已存在词条名称「${nameMatch.name}」。`,
       });
     }
     const aliasOwner = sameScope.find((entry) =>
@@ -194,20 +191,19 @@ export function validateEntry(candidate, entries) {
     valid: Object.keys(errors).length === 0 && conflicts.length === 0,
     errors,
     conflicts,
-    normalized: { name, attributes, aliases, definition, scope, status },
+    normalized: { name, attributes, aliases, definition, scopes, status },
   };
 }
 
 export function searchEntries(entries, filters = {}) {
   const keyword = normalizeText(filters.keyword || "");
-  const scopeType = filters.scopeType || "all";
+  const selected = new Set((filters.scopeKeys || []).map(String));
   const status = filters.status || "all";
   return (entries || []).filter((entry) => {
-    if (scopeType !== "all" && entry.scope?.type !== scopeType) return false;
+    if (selected.size && !entryScopes(entry).some(scope => selected.has(scopeKey(scope)))) return false;
     if (status !== "all" && entry.status !== status) return false;
-    if (filters.scopeId && entry.scope?.id !== filters.scopeId) return false;
     if (!keyword) return true;
-    const haystack = [entry.name, entry.definition, ...(entry.aliases || [])]
+    const haystack = [entry.name, entry.definition, ...(entry.aliases || []), ...(entry.attributes || []).flatMap(item => [item.name, item.value])]
       .map(normalizeText)
       .join("\n");
     return haystack.includes(keyword);
@@ -220,42 +216,6 @@ export function paginate(items, page, pageSize) {
   const current = Math.min(Math.max(1, Number(page) || 1), pages);
   const start = (current - 1) * pageSize;
   return { items: items.slice(start, start + pageSize), page: current, pages, total };
-}
-
-function scopeSpecificity(scope, context = {}) {
-  const normalized = normalizeScope(scope);
-  if (!["global", "app"].includes(normalized.type)) return 0;
-  if (normalized.type === "app") return context.appId && normalized.id === context.appId ? 2 : 0;
-  return 1;
-}
-
-export function resolveTerms(query, entries, context = {}) {
-  const normalizedQuery = normalizeText(query);
-  if (!normalizedQuery) return [];
-  const byKeyword = new Map();
-
-  for (const entry of entries || []) {
-    if (entry.status !== "enabled") continue;
-    const specificity = scopeSpecificity(entry.scope, context);
-    if (!specificity) continue;
-    for (const keyword of [entry.name, ...normalizeAliases(entry.aliases)]) {
-      const normalizedKeyword = normalizeText(keyword);
-      if (!normalizedKeyword || !normalizedQuery.includes(normalizedKeyword)) continue;
-      const previous = byKeyword.get(normalizedKeyword);
-      if (!previous || specificity > previous.specificity) {
-        byKeyword.set(normalizedKeyword, { keyword, entry, specificity });
-      }
-    }
-  }
-
-  const seen = new Set();
-  return [...byKeyword.values()]
-    .sort((a, b) => b.specificity - a.specificity || b.keyword.length - a.keyword.length)
-    .filter((hit) => {
-      if (seen.has(hit.entry.id)) return false;
-      seen.add(hit.entry.id);
-      return true;
-    });
 }
 
 export function parseCsv(text) {
@@ -313,20 +273,13 @@ export function toCsv(rows) {
   return rows.map((row) => row.map(escapeCsvValue).join(",")).join("\r\n");
 }
 
-function parseScopeType(value) {
-  const key = cleanText(value);
-  if (key === "全局") return "global";
-  if (key === "指定 Agent" || key === "Agent") return "app";
-  return "";
-}
-
 export function importRowsToEntries(text, options = {}) {
   const rows = parseCsv(text);
   if (!rows.length) {
     return { rows: [], validCount: 0, invalidCount: 0, headersOk: false, error: "文件为空" };
   }
-  const header = rows[0].map(cleanText);
-  const headerOk = CSV_HEADERS.every((name) => header.includes(name));
+  const header = rows[0].map(value => cleanText(value).replace(/\u4f5c\u7528\u8303\u56f4/g, "应用范围"));
+  const headerOk = ["词条名称", "别名", "释义", "应用范围", "状态"].every(name => header.includes(name)) && new Set(header).size === header.length;
   if (!headerOk) {
     return {
       rows: [],
@@ -349,7 +302,7 @@ export function importRowsToEntries(text, options = {}) {
       attributes: cells[index["可扩展属性"]] || "[]",
       aliases: cells[index["别名"]] || "",
       definition: cells[index["释义"]] || "",
-      scopeRaw: cells[index["作用范围"]] || "",
+      scopeRaw: cells[index["应用范围"]] || "",
       targetRaw: cells[index["Agent名称"]] || "",
       statusRaw: cells[index["状态"]] || "",
     };
@@ -358,16 +311,18 @@ export function importRowsToEntries(text, options = {}) {
     if (!cleanText(raw.name)) errors.push("词条名称为空");
     if (!cleanText(raw.definition)) errors.push("释义为空");
 
-    const type = parseScopeType(raw.scopeRaw);
-    let scope = null;
-    if (!type) {
-      errors.push("作用范围应为：全局 / 指定 Agent");
-    } else if (type === "global") {
-      scope = { type: "global" };
-    } else {
-      const target = apps.find(item => item.id === cleanText(raw.targetRaw) || item.name === cleanText(raw.targetRaw));
-      if (!target) errors.push(`未找到 Agent「${cleanText(raw.targetRaw)}」`);
-      else scope = { type, id: target.id };
+    const rangeValues = raw.scopeRaw.split("|").map(cleanText).filter(Boolean);
+    const legacyAgent = ["Agent", "指定 Agent"].includes(cleanText(raw.scopeRaw));
+    if (legacyAgent) rangeValues.splice(0, rangeValues.length, cleanText(raw.targetRaw));
+    const scopes = [];
+    if (!rangeValues.length || rangeValues.some(value => !value)) errors.push("请选择应用范围");
+    for (const value of rangeValues) {
+      if (value === "全局") scopes.push({ type: "global" });
+      else {
+        const target = apps.find(item => item.id === value || item.name === value);
+        if (!target) errors.push(`未找到 Agent「${value}」`);
+        else scopes.push({ type: "app", id: target.id });
+      }
     }
 
     const statusKey = cleanText(raw.statusRaw);
@@ -390,11 +345,11 @@ export function importRowsToEntries(text, options = {}) {
       attributes: Array.isArray(attributes) ? attributes : [],
       aliases: normalizeAliases(raw.aliases),
       definition: cleanText(raw.definition),
-      scope: scope || { type: "global" },
+      scopes,
       status: status || "enabled",
     };
 
-    if (scope && status) {
+    if (status) {
       const validation = validateEntry(candidate, stagedEntries);
       for (const message of Object.values(validation.errors)) errors.push(message);
       for (const conflict of validation.conflicts) errors.push(conflict.message);
@@ -423,12 +378,12 @@ export function entriesToCsv(entries, apps = APPS) {
     entry.name,
     normalizeAliases(entry.aliases).join("|"),
     entry.definition,
-    scopeTypeLabel(entry.scope?.type),
-    entry.scope?.type === "global" ? "" : targetName(entry.scope, apps),
+    JSON.stringify(entry.attributes || []),
+    entryScopes(entry).map(scope => scopeLabel(scope, apps)).join("|"),
     statusLabel(entry.status),
   ])]);
 }
 
 export function templateCsv() {
-  return entriesToCsv([{ name: "示例：隔离开关", aliases: ["示例：刀闸"], definition: "示例词条，导入前请删除本行。", attributes: [{ name: "设备类型", value: "隔离设备" }], scope: { type: "app", id: "app-device" }, status: "enabled" }]);
+  return entriesToCsv([{ name: "示例：隔离开关", aliases: ["示例：刀闸"], definition: "示例词条，导入前请删除本行。", attributes: [{ name: "设备类型", value: "隔离设备" }], scopes: [{ type: "app", id: "app-device" }], status: "enabled" }]);
 }

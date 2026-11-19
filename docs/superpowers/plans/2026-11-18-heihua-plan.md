@@ -1,6 +1,8 @@
-# 黑话配置实施计划
+# 词条配置实施计划
 
-**Goal:** 完成可演示的知识库级别黑话配置并公开发布 GitHub Pages。
+历史计划，仅保留早期工作记录；当前交付规则以 `docs/term-model.md` 为准。
+
+**Goal:** 完成可演示的知识库级别词条配置并公开发布 GitHub Pages。
 **Architecture:** 原生 HTML/CSS/JS 静态应用，domain.mjs 独立负责校验、CSV、范围解析；app.js 负责视图、本地持久化和交互。
 **Tech Stack:** 原生浏览器 API、Node test、Playwright（开发验证）。
 **Spec:** docs/superpowers/specs/2026-11-18-heihua-design.md
@@ -10,7 +12,7 @@
 
 ### Task 1: 数据规则
 - [ ] 先编写领域行为测试，运行确认因实现缺失而失败。
-- [ ] 实现 domain.mjs：normalization、同范围冲突校验、CSV 编解码、原子导入校验、作用范围覆盖解析、16 条行业样本。
+- [ ] 实现 domain.mjs：normalization、同范围冲突校验、CSV 编解码、原子导入校验、应用范围覆盖解析、16 条行业样本。
 - [ ] 运行 node --test tests/domain.test.mjs，通过后集成。
 
 ### Task 2: 页面与交互
