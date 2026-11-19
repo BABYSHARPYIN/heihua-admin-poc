@@ -6,16 +6,16 @@
 
 ## 功能范围
 
-- 词条列表：名称、别名、释义、可扩展属性、应用范围、状态、更新时间；别名和属性使用纯文本，Agent 范围可直接跳转。
-- 单条维护：词条名称、多个别名、释义、多条属性名/属性值、全局或指定 Agent 范围、状态；保存后立即生效。
-- 校验：同范围名称与别名共用冲突空间；属性名和值成对填写，属性名不可重复，属性值无全局唯一约束。
+- 词条列表：名称、别名、释义、应用范围、状态、更新时间；范围以纯文本展示，不跳转 Agent。
+- 单条维护：词条名称、多个别名、释义、全局或指定 Agent 范围、状态；不提供补充属性或重复预览，保存后立即生效。
+- 校验：名称、释义必填，同范围名称与别名共用冲突空间。
 - 词条管理内召回：选择全局或具体 Agent；全局只查全局，Agent 合并自身及全局词条，同问法 Agent 优先，停用词条不召回。
 - 专业 Agent「效果设置」：词条增强默认开启；详情内没有词条召回演示或关联知识库关系区。
 - 停用、删除二次确认；CSV 导入先逐行预览校验，全部通过后原子写入。
 - 变更记录与最近一次变更回滚。
 - 身份演示：词条查看/词条管理、仅查看、无权限，入口位于右上角用户菜单。
 
-CSV 字段：词条名称、别名、释义、可扩展属性、作用范围、Agent名称、状态。别名以 `|` 分隔；属性为 JSON 数组，例如 `[{"name":"型号","value":"DS-1"}]`。可直接下载模板，导出与导入使用同一结构。
+CSV 字段：词条名称、别名、释义、作用范围、Agent名称、状态。别名以 `|` 分隔。下载模板与导出均使用六列结构；旧七列文件仍可导入，历史属性保留在本地存储，不在界面展示或编辑，也不进入新导出文件。
 
 旧浏览器数据在首次加载时迁移：原编码变成普通「编码」属性；原知识库范围转为先前示例对应的 Agent，不认识的旧范围不扩大成全局；旧本库可写身份降为仅查看。旧数据仍保留在旧存储键中，新操作使用 v2 存储。
 
@@ -53,7 +53,7 @@ npm run test:ui
 | 词条管理 | `docs/screenshots/terms-final/01-global-list.png` |
 | 别名冲突校验 | `docs/screenshots/terms-final/02-alias-conflict.png` |
 | 导入预览 | `docs/screenshots/terms-final/04-import-preview.png` |
-| 通用属性 | `docs/screenshots/terms-final/05-generic-attributes.png` |
+| 精简编辑 | `docs/screenshots/terms-final/05-simple-editor.png` |
 | 指定 Agent 召回 | `docs/screenshots/terms-final/06-recall-agent.png` |
 | Agent 词条增强 | `docs/screenshots/terms-final/14-agent-config.png` |
 | 具体 Agent 筛选 | `docs/screenshots/terms-final/15-agent-scope-filter.png` |

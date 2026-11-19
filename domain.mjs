@@ -20,7 +20,7 @@ export const STATUS_OPTIONS = [
   { value: "disabled", label: "停用" },
 ];
 
-export const CSV_HEADERS = ["词条名称", "别名", "释义", "可扩展属性", "作用范围", "Agent名称", "状态"];
+export const CSV_HEADERS = ["词条名称", "别名", "释义", "作用范围", "Agent名称", "状态"];
 
 export function normalizeText(value = "") {
   return String(value).normalize("NFKC").replace(/\s+/g, "").toLowerCase();
@@ -207,7 +207,7 @@ export function searchEntries(entries, filters = {}) {
     if (status !== "all" && entry.status !== status) return false;
     if (filters.scopeId && entry.scope?.id !== filters.scopeId) return false;
     if (!keyword) return true;
-    const haystack = [entry.name, entry.definition, ...(entry.aliases || []), ...(entry.attributes || []).flatMap(item => [item.name, item.value])]
+    const haystack = [entry.name, entry.definition, ...(entry.aliases || [])]
       .map(normalizeText)
       .join("\n");
     return haystack.includes(keyword);
@@ -423,7 +423,6 @@ export function entriesToCsv(entries, apps = APPS) {
     entry.name,
     normalizeAliases(entry.aliases).join("|"),
     entry.definition,
-    JSON.stringify(entry.attributes || []),
     scopeTypeLabel(entry.scope?.type),
     entry.scope?.type === "global" ? "" : targetName(entry.scope, apps),
     statusLabel(entry.status),

@@ -21,6 +21,21 @@ async function shot(page, name) {
   await page.screenshot({ path: resolve(screenshotDir, name), fullPage: true });
 }
 
+test("工程师编辑仅保留五项信息，无补充属性或重复预览", async ({ page }) => {
+  const errors = await open(page);
+  await page.getByRole("button", { name: "词条管理", exact: true }).click();
+  await expect(page.locator("#page-terms table.data thead th")).toHaveText(["词条名称", "别名", "释义", "应用范围", "状态", "更新时间", "操作"]);
+  await page.locator("#btn-black-add").click();
+  await expect(page.locator("#term-form .form-row")).toHaveCount(5);
+  await expect(page.locator("#term-attributes, #normalize-preview")).toHaveCount(0);
+  await page.locator("#term-name").fill("现场测试词条");
+  await page.locator("#term-definition").fill("现场人员维护的词条释义。");
+  await shot(page, "05-simple-editor.png");
+  await page.locator("#btn-term-save").click();
+  await expect(page.locator("#black-tbody tr", { hasText: "现场测试词条" })).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
 test("现网外壳、卡片、设置页签与效果开关保持统一", async ({ page }) => {
   const errors = await open(page);
   const nav = page.getByRole("navigation", { name: "主导航" });
@@ -111,7 +126,7 @@ test("新增校验、别名冲突、编辑、停用确认与删除确认", async
   await page.locator('#term-conflict-list [data-conflict-remove-alias]').click();
   await page.fill("#alias-input", "测试隔离设备");
   await page.locator("#alias-input").press("Enter");
-  await expect(page.locator("#preview-result")).toContainText("隔离设备");
+  await expect(page.locator("#term-name")).toHaveValue("隔离设备");
   await expect(page.locator("#btn-term-save")).toBeEnabled();
   await page.locator("#btn-term-save").click();
   await expect(page.locator("#modal-term")).not.toHaveClass(/show/);
@@ -120,7 +135,7 @@ test("新增校验、别名冲突、编辑、停用确认与删除确认", async
 
   await row.getByRole("button", { name: "编辑" }).click();
   await page.fill("#term-name", "隔离设备（编辑）");
-  await expect(page.locator("#preview-result")).toContainText("隔离设备(编辑)");
+  await expect(page.locator("#term-name")).toHaveValue("隔离设备（编辑）");
   await page.locator("#btn-term-save").click();
   const editedRow = page.locator("#black-tbody tr", { hasText: "隔离设备(编辑)" }).first();
   await expect(editedRow).toBeVisible();
@@ -138,22 +153,22 @@ test("新增校验、别名冲突、编辑、停用确认与删除确认", async
   expect(errors).toEqual([]);
 });
 
-test("通用属性导入先校验后原子写入", async ({ page }) => {
+test("六列导入先校验后原子写入", async ({ page }) => {
   const errors = await open(page);
   await page.getByRole("button", { name: "词条管理", exact: true }).click();
   await page.locator("#btn-black-import").click();
   await page.locator("#btn-fill-import-sample").click();
-  await expect(page.locator("#import-text")).toHaveValue(/^词条名称,别名,释义,可扩展属性,作用范围,Agent名称,状态/);
+  await expect(page.locator("#import-text")).toHaveValue(/^词条名称,别名,释义,作用范围,Agent名称,状态/);
   await page.locator("#btn-preview-import").click();
   await expect(page.locator("#import-summary")).toContainText("通过 1 行");
   await shot(page, "04-import-preview.png");
   await page.locator("#btn-import-confirm").click();
-  await expect(page.locator("#black-tbody tr", { hasText: "油色谱异常" })).toContainText("分类：运维");
+  await expect(page.locator("#black-tbody tr", { hasText: "油色谱异常" })).toContainText("油中溶解气体分析");
   await page.locator("#btn-black-import").click();
-  await page.locator("#import-text").fill('词条名称,别名,释义,可扩展属性,作用范围,Agent名称,状态\n错误属性,,释义,{},全局,,启用');
+  await page.locator("#import-text").fill('词条名称,别名,释义,作用范围,Agent名称,状态\n错误范围,,释义,指定 Agent,不存在的Agent,启用');
   await page.locator("#btn-preview-import").click();
   await expect(page.locator("#btn-import-confirm")).toBeDisabled();
-  await expect(page.locator("#import-preview-body")).toContainText("JSON 数组");
+  await expect(page.locator("#import-preview-body")).toContainText("未找到 Agent");
   expect(errors).toEqual([]);
 });
 
@@ -219,52 +234,44 @@ test("导出、变更留痕与回滚保持可用", async ({ page }) => {
   expect(errors).toEqual([]);
 });
 
-test("可扩展属性增删、校验、持久化及范围跳转", async ({ page }) => {
+test("精简词条编辑、持久化及范围展示", async ({ page }) => {
   const errors = await open(page);
   await page.getByRole("button", { name: "词条管理", exact: true }).click();
   await page.locator("#btn-black-add").click();
   await page.locator("#term-name").fill("通用设备词条");
-  await page.locator("#term-definition").fill("用于验证通用属性和范围跳转。");
+  await page.locator("#term-definition").fill("用于验证现场维护和范围展示。");
   await page.locator("#term-scope-type").selectOption("app");
   await page.locator("#term-scope-target").selectOption("app-service");
-  await page.locator("#btn-add-attribute").click();
-  await page.getByRole("textbox", { name: "属性名", exact: true }).fill("型号");
-  await page.locator("#btn-term-save").click();
-  await expect(page.locator("#err-term-attributes")).toContainText("属性值");
-  await page.getByRole("textbox", { name: "属性值", exact: true }).fill("A-100");
-  await page.locator("#btn-add-attribute").click();
-  await page.getByRole("textbox", { name: "属性名", exact: true }).nth(1).fill("地区");
-  await page.getByRole("textbox", { name: "属性值", exact: true }).nth(1).fill("华东");
-  await expect(page.locator("#err-term-attributes")).not.toHaveClass(/show/);
-  await shot(page, "05-generic-attributes.png");
+  await page.locator("#alias-input").fill("现场设备简称");
+  await page.locator("#alias-input").press("Enter");
   await page.locator("#btn-term-save").click();
   const row = page.locator("#black-tbody tr", { hasText: "通用设备词条" });
-  await expect(row).toContainText("型号：A-100；地区：华东");
+  await expect(row).toContainText("现场设备简称");
   await expect(row.locator(".tag")).toHaveCount(0);
-  await row.getByRole("button", { name: "客户服务助手", exact: true }).click();
-  await expect(page.locator("#agent-title")).toHaveText("客户服务助手");
+  await expect(row.locator("td").nth(3)).toHaveText("客户服务助手");
   await page.reload();
   await page.getByRole("button", { name: "词条管理", exact: true }).click();
-  await page.locator("#black-search").fill("A-100");
+  await page.locator("#black-search").fill("现场设备简称");
   await expect(row).toBeVisible();
   await row.getByRole("button", { name: "编辑", exact: true }).click();
-  await page.getByRole("button", { name: "删除属性" }).last().click();
+  await page.locator("#term-definition").fill("更新后的现场释义。");
   await page.locator("#btn-term-save").click();
-  await expect(row).not.toContainText("华东");
+  await expect(row).toContainText("更新后的现场释义。");
   expect(errors).toEqual([]);
 });
 
-test("按具体 Agent 筛选，范围跳转到对应 Agent", async ({ page }) => {
+test("按具体 Agent 筛选，应用范围仅为文本且点击不跳转", async ({ page }) => {
   const errors = await open(page);
   await page.getByRole("button", { name: "词条管理", exact: true }).click();
   await page.locator("#black-scope").selectOption("app");
   await page.locator("#list-agent").selectOption("app-safety");
-  const links = page.locator("#black-tbody .scope-link");
-  expect(await links.count()).toBeGreaterThan(0);
-  for (const link of await links.all()) await expect(link).toHaveText("安全规程助手");
+  const cells = page.locator("#black-tbody tr td:nth-child(4)");
+  expect(await cells.count()).toBeGreaterThan(0);
+  for (const cell of await cells.all()) await expect(cell).toHaveText("安全规程助手");
+  await expect(cells.locator("button, a, [role=link]")).toHaveCount(0);
   await shot(page, "15-agent-scope-filter.png");
-  await links.first().click();
-  await expect(page.locator("#agent-title")).toHaveText("安全规程助手");
+  await cells.first().click();
+  await expect(page.locator("#page-terms")).toBeVisible();
   expect(errors).toEqual([]);
 });
 
@@ -274,12 +281,34 @@ test("旧本地数据迁移为通用属性，旧知识库写身份不升级为�
   });
   const errors = await open(page);
   await page.getByRole("button", { name: "词条管理", exact: true }).click();
-  await expect(page.locator("#black-tbody")).toContainText("编码：OLD-1");
-  await expect(page.locator("#black-tbody .scope-link")).toHaveText("设备运维助手");
+  await expect(page.locator("#black-tbody")).toContainText("旧设备");
+  await expect(page.locator("#black-tbody")).not.toContainText("OLD-1");
+  await expect(page.locator("#black-tbody tr td:nth-child(4)")).toHaveText("设备运维助手");
   await expect(page.locator("#btn-black-add")).toBeHidden();
   await page.locator("#black-tbody").getByRole("button", { name: "查看", exact: true }).click();
-  await expect(page.getByRole("textbox", { name: "属性值", exact: true })).toHaveValue("OLD-1");
-  await expect(page.locator("#btn-add-attribute")).toBeHidden();
+  await expect(page.locator("#term-name")).toHaveValue("旧设备");
+  await expect(page.locator("#term-name")).toHaveAttribute("readonly", "");
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem("heihua-admin-poc-state-v1")).entries[0].code)).toBe("OLD-1");
+  expect(errors).toEqual([]);
+});
+
+test("编辑旧词条保留历史属性但不显示或要求维护", async ({ page }) => {
+  await page.addInitScript(() => {
+    if (!localStorage.getItem("heihua-admin-poc-state-v2")) localStorage.setItem("heihua-admin-poc-state-v2", JSON.stringify({ identity: "full", entries: [{ id: "legacy-edit", name: "历史设备", aliases: [], definition: "原释义", attributes: [{ name: "编码", value: "OLD-EDIT" }], scope: { type: "global" }, status: "enabled" }] }));
+  });
+  const errors = await open(page);
+  await page.getByRole("button", { name: "词条管理", exact: true }).click();
+  const before = await page.evaluate(() => JSON.parse(localStorage.getItem("heihua-admin-poc-state-v2"))?.entries);
+  const firstRow = page.locator("#black-tbody tr").first();
+  const name = await firstRow.locator(".cell-main").innerText();
+  await firstRow.getByRole("button", { name: "编辑", exact: true }).click();
+  await expect(page.locator("#term-name")).toBeFocused();
+  await page.locator("#term-definition").fill("维护后的释义");
+  await page.locator("#btn-term-save").click();
+  const saved = await page.evaluate(name => JSON.parse(localStorage.getItem("heihua-admin-poc-state-v2")).entries.find(item => item.name === name), name);
+  expect(saved.definition).toBe("维护后的释义");
+  expect(saved.attributes.length).toBeGreaterThan(0);
+  expect(saved.attributes).toEqual(before.find(item => item.name === name).attributes);
   expect(errors).toEqual([]);
 });
 
@@ -296,9 +325,12 @@ test("词条管理召回：全局与 Agent 范围、切换清空结果、停用�
   await page.locator("#btn-recall-run").click();
   await expect(page.locator("#recall-result")).toContainText("计量用电流互感器");
   await shot(page, "06-recall-agent.png");
-  await page.locator("#recall-result").getByRole("button", { name: "设备运维助手", exact: true }).click();
-  await expect(page.locator("#agent-title")).toHaveText("设备运维助手");
-  await page.getByRole("button", { name: "词条管理", exact: true }).click();
+  const scopeCell = page.locator("#recall-result tbody td").last();
+  await expect(scopeCell).toHaveText("设备运维助手");
+  await expect(scopeCell.locator("a, button, [role=link]")).toHaveCount(0);
+  await scopeCell.click();
+  await expect(page.locator("#modal-recall")).toHaveClass(/show/);
+  await page.keyboard.press("Escape");
   await page.locator("#black-search").fill("计量用电流互感器");
   await page.locator("#black-tbody tr").getByRole("button", { name: "停用", exact: true }).click();
   await page.locator("#btn-confirm-ok").click();

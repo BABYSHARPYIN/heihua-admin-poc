@@ -44,8 +44,9 @@ test("同范围名称与别名冲突，不同 Agent 可同名且可覆盖全局"
   assert.equal(validateEntry({ ...entries[0] }, entries).valid, true);
 });
 
-test("搜索覆盖名称、别名、释义、属性，并支持具体 Agent", () => {
-  for (const keyword of ["刀闸", "明显断开点", "设备类型", "隔离设备"]) assert.ok(searchEntries(entries, { keyword }).length > 0);
+test("搜索覆盖名称、别名和释义，不使用隐藏旧属性", () => {
+  for (const keyword of ["刀闸", "明显断开点", "隔离设备"]) assert.ok(searchEntries(entries, { keyword }).length > 0);
+  assert.equal(searchEntries(entries, { keyword: "设备类型" }).length, 0);
   assert.deepEqual(searchEntries(entries, { scopeId: "app-device" }).map(item => item.id), ["device"]);
   assert.deepEqual(searchEntries(entries, { scopeType: "global" }).map(item => item.id), ["global"]);
   assert.equal(paginate(entries, 99, 2).page, 2);
@@ -60,24 +61,32 @@ test("召回全局或指定 Agent，Agent 优先且停用不召回", () => {
   assert.deepEqual(resolveTerms("刀闸", [candidate({ scope: { type: "kb", id: "kb-device" } })], { kbId: "kb-device" }), []);
 });
 
-test("CSV 属性 JSON 及逗号引号换行往返，模板表头一致", () => {
+test("CSV 仅保留六列，释义逗号引号换行往返，模板表头一致", () => {
   const source = candidate({ definition: '含逗号,引号"与\n换行', attributes: [{ name: "扩展说明", value: 'A,B"C\nD' }] });
   const csv = entriesToCsv([source]);
   const parsed = importRowsToEntries(`\uFEFF${csv}`);
   assert.equal(parsed.allValid, true);
-  assert.deepEqual(parsed.rows[0].candidate.attributes, source.attributes);
+  assert.deepEqual(parsed.rows[0].candidate.attributes, []);
+  assert.equal(parsed.rows[0].candidate.definition, '含逗号,引号"与 换行');
   assert.deepEqual(parseCsv(csv)[0], CSV_HEADERS);
   assert.deepEqual(parseCsv(templateCsv())[0], CSV_HEADERS);
-  assert.deepEqual(CSV_HEADERS, ["词条名称", "别名", "释义", "可扩展属性", "作用范围", "Agent名称", "状态"]);
+  assert.deepEqual(CSV_HEADERS, ["词条名称", "别名", "释义", "作用范围", "Agent名称", "状态"]);
 });
 
 test("导入校验属性、Agent、同批冲突及旧结构，错误不可原子导入", () => {
-  const rows = [CSV_HEADERS, ["新词条", "", "释义", "not-json", "全局", "", "启用"], ["新词条", "", "释义", "[]", "指定 Agent", "missing", "启用"], ["新词条", "", "释义", "[]", "指定知识库", "设备运维知识库", "启用"]];
+  const rows = [["词条名称", "别名", "释义", "可扩展属性", "作用范围", "Agent名称", "状态"], ["新词条", "", "释义", "not-json", "全局", "", "启用"], ["新词条", "", "释义", "[]", "指定 Agent", "missing", "启用"], ["新词条", "", "释义", "[]", "指定知识库", "设备运维知识库", "启用"]];
   assert.equal(importRowsToEntries(toCsv(rows)).invalidCount, 3);
   const duplicate = importRowsToEntries(entriesToCsv([candidate(), candidate()]));
   assert.equal(duplicate.validCount, 1);
   assert.equal(duplicate.allValid, false);
   assert.equal(importRowsToEntries("旧表头,旧编码\n测试,A").headersOk, false);
+});
+
+test("旧七列文件仍可导入，历史属性不丢失", () => {
+  const csv = toCsv([["词条名称", "别名", "释义", "可扩展属性", "作用范围", "Agent名称", "状态"], ["旧设备", "", "旧释义", '[{"name":"编码","value":"OLD-1"}]', "全局", "", "启用"]]);
+  const parsed = importRowsToEntries(csv);
+  assert.equal(parsed.allValid, true);
+  assert.deepEqual(parsed.rows[0].candidate.attributes, [{name: "编码", value: "OLD-1"}]);
 });
 
 test("迁移编码为普通属性，已知旧范围转原对应 Agent，未知范围不扩大权限", () => {
