@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "lint": "node scripts/lint.mjs",
-    "test": "node --test tests/domain.test.mjs",
+    "test": "node --test tests/model.test.mjs",
     "test:ui": "playwright test tests/ui.spec.mjs",
     "serve": "python3 -m http.server 4173 --bind 127.0.0.1"
   },

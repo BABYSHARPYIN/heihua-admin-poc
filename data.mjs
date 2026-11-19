@@ -2,7 +2,7 @@ export const INITIAL_ENTRIES = [
   {
     id: "t-wufang",
     name: "五防",
-    code: "SAFE-WF-008",
+    attributes: [{ name: "分类", value: "作业安全" }, { name: "编码", value: "SAFE-WF-008" }],
     aliases: ["防误闭锁", "五防闭锁"],
     definition: "防止误分合断路器、带负荷拉合隔离开关、带电挂接地线、带接地线合闸、误入带电间隔的五项防误要求。",
     scope: { type: "global" },
@@ -13,7 +13,7 @@ export const INITIAL_ENTRIES = [
   {
     id: "t-liangpiao",
     name: "两票",
-    code: "SAFE-LP-009",
+    attributes: [{ name: "编码", value: "SAFE-LP-009" }],
     aliases: ["工作票和操作票", "两票制"],
     definition: "工作票与操作票的合称，是现场作业许可和倒闸操作执行的基本书面依据。",
     scope: { type: "global" },
@@ -24,7 +24,7 @@ export const INITIAL_ENTRIES = [
   {
     id: "t-ancuo",
     name: "安措",
-    code: "SAFE-AC-010",
+    attributes: [{ name: "编码", value: "SAFE-AC-010" }],
     aliases: ["安全措施", "组织技术措施"],
     definition: "为保障作业安全而采取的组织措施和技术措施，包括停电、验电、装设接地线、设置围栏及悬挂标示牌等。",
     scope: { type: "global" },
@@ -35,7 +35,7 @@ export const INITIAL_ENTRIES = [
   {
     id: "t-hongwai",
     name: "红外测温",
-    code: "OPS-IR-017",
+    attributes: [{ name: "编码", value: "OPS-IR-017" }],
     aliases: ["红外检测", "测温"],
     definition: "利用红外热像仪检测设备表面温度分布，发现接头过热、接触不良等缺陷的带电检测手段。",
     scope: { type: "global" },
@@ -46,7 +46,7 @@ export const INITIAL_ENTRIES = [
   {
     id: "t-taizhang",
     name: "设备台账",
-    code: "OPS-LG-018",
+    attributes: [{ name: "编码", value: "OPS-LG-018" }],
     aliases: ["台账", "设备档案"],
     definition: "记录设备型号、参数、位置、投运日期、检修历史和责任人等基础信息的设备档案。",
     scope: { type: "global" },
@@ -57,7 +57,7 @@ export const INITIAL_ENTRIES = [
   {
     id: "t-xunjian",
     name: "巡检",
-    code: "OPS-PT-019",
+    attributes: [{ name: "编码", value: "OPS-PT-019" }],
     aliases: ["设备巡视", "例行巡视"],
     definition: "按规定的路线、周期和项目对设备运行状态进行检查，并记录异常情况。",
     scope: { type: "global" },
@@ -68,7 +68,7 @@ export const INITIAL_ENTRIES = [
   {
     id: "t-quexian-global",
     name: "设备缺陷",
-    code: "OPS-DF-013",
+    attributes: [{ name: "编码", value: "OPS-DF-013" }],
     aliases: ["缺陷", "设备病"],
     definition: "设备在运行或检修中出现的异常状态，按严重程度分级并进入缺陷管理流程。",
     scope: { type: "global" },
@@ -79,7 +79,7 @@ export const INITIAL_ENTRIES = [
   {
     id: "t-duanluqi",
     name: "断路器",
-    code: "EQ-CB-002",
+    attributes: [{ name: "设备类型", value: "开关设备" }, { name: "编码", value: "EQ-CB-002" }],
     aliases: ["开关", "空开"],
     definition: "能够关合、承载和开断正常回路电流，并能在规定时间内关合、承载和开断异常电流的开关设备。",
     scope: { type: "app", id: "app-device" },
@@ -90,7 +90,7 @@ export const INITIAL_ENTRIES = [
   {
     id: "t-gelikaiguan",
     name: "隔离开关",
-    code: "EQ-DS-003",
+    attributes: [{ name: "编码", value: "EQ-DS-003" }],
     aliases: ["刀闸", "隔离刀闸"],
     definition: "在分位置时具有明显断开点、用于隔离电源的开关设备，不能用于接通或切断负荷电流。",
     scope: { type: "app", id: "app-device" },
@@ -101,7 +101,7 @@ export const INITIAL_ENTRIES = [
   {
     id: "t-xiaoque",
     name: "消缺",
-    code: "OPS-DF-014",
+    attributes: [{ name: "编码", value: "OPS-DF-014" }],
     aliases: ["缺陷消除", "处理缺陷"],
     definition: "针对已登记缺陷安排检修、试验或运行调整，使设备恢复到规定状态并完成闭环。",
     scope: { type: "app", id: "app-device" },
@@ -112,7 +112,7 @@ export const INITIAL_ENTRIES = [
   {
     id: "t-tingdianjianxiu",
     name: "停电检修",
-    code: "OPS-MT-015",
+    attributes: [{ name: "编码", value: "OPS-MT-015" }],
     aliases: ["停修", "停电检修计划"],
     definition: "将设备从运行状态转为检修状态后开展的检查、试验和修复工作。",
     scope: { type: "app", id: "app-device" },
@@ -123,7 +123,7 @@ export const INITIAL_ENTRIES = [
   {
     id: "t-daidianzuoye",
     name: "带电作业",
-    code: "OPS-LW-016",
+    attributes: [{ name: "编码", value: "OPS-LW-016" }],
     aliases: ["带电作业法"],
     definition: "在不停电的设备或线路上，按照规定的安全距离和防护措施进行的检修作业。",
     scope: { type: "app", id: "app-device" },
@@ -134,7 +134,7 @@ export const INITIAL_ENTRIES = [
   {
     id: "t-gongzuopiao",
     name: "工作票",
-    code: "SAFE-WP-011",
+    attributes: [{ name: "编码", value: "SAFE-WP-011" }],
     aliases: ["工票", "第一种工作票"],
     definition: "准许在电气设备上开展检修、试验等工作的书面安全命令，明确工作任务、安全措施和许可条件。",
     scope: { type: "app", id: "app-safety" },
@@ -145,8 +145,8 @@ export const INITIAL_ENTRIES = [
   {
     id: "t-caozuopiao",
     name: "操作票",
-    code: "SAFE-OP-012",
-    aliases: ["操作令票", "倒闸操作票"],
+    attributes: [{ name: "编码", value: "SAFE-OP-012" }],
+    aliases: ["操作令票"],
     definition: "倒闸操作前填写的书面顺序命令，逐项记录操作任务、步骤和检查确认结果。",
     scope: { type: "app", id: "app-safety" },
     status: "enabled",
@@ -156,7 +156,7 @@ export const INITIAL_ENTRIES = [
   {
     id: "t-quexiandengji",
     name: "缺陷等级",
-    code: "OPS-DF-020",
+    attributes: [{ name: "编码", value: "OPS-DF-020" }],
     aliases: ["缺陷级别", "危急等级"],
     definition: "按缺陷对设备安全和运行的影响程度划分的危急、严重、一般等级。",
     scope: { type: "app", id: "app-device" },
@@ -167,7 +167,7 @@ export const INITIAL_ENTRIES = [
   {
     id: "t-ct-global",
     name: "电流互感器",
-    code: "EQ-CT-004",
+    attributes: [{ name: "编码", value: "EQ-CT-004" }],
     aliases: ["CT", "流变"],
     definition: "将一次侧大电流按比例变换为二次侧小电流，供测量和保护装置使用的设备。",
     scope: { type: "global" },
@@ -178,10 +178,10 @@ export const INITIAL_ENTRIES = [
   {
     id: "t-ct-meter",
     name: "计量用电流互感器",
-    code: "KB-DEV-CT-01",
+    attributes: [{ name: "编码", value: "KB-DEV-CT-01" }],
     aliases: ["CT", "计量流变"],
-    definition: "本库语境中特指用于电能计量的电流互感器，需同时记录准确级、变比和计量绕组信息。",
-    scope: { type: "kb", id: "kb-device" },
+    definition: "设备运维场景中特指用于电能计量的电流互感器，需同时记录准确级、变比和计量绕组信息。",
+    scope: { type: "app", id: "app-device" },
     status: "enabled",
     updatedAt: "2026-11-18T09:12:00+08:00",
     createdAt: "2026-10-08T15:20:00+08:00",
@@ -189,10 +189,10 @@ export const INITIAL_ENTRIES = [
   {
     id: "t-pt",
     name: "电压互感器",
-    code: "EQ-PT-005",
+    attributes: [{ name: "编码", value: "EQ-PT-005" }],
     aliases: ["PT", "压变"],
     definition: "将一次侧高电压按比例变换为二次侧低电压，供测量、保护和控制装置使用的设备。",
-    scope: { type: "kb", id: "kb-device" },
+    scope: { type: "app", id: "app-device" },
     status: "enabled",
     updatedAt: "2026-11-15T15:36:00+08:00",
     createdAt: "2026-09-24T10:28:00+08:00",
@@ -200,10 +200,10 @@ export const INITIAL_ENTRIES = [
   {
     id: "t-duanzixiang",
     name: "端子箱",
-    code: "EQ-TB-006",
+    attributes: [{ name: "编码", value: "EQ-TB-006" }],
     aliases: ["端子盒"],
     definition: "集中布置二次回路端子、便于电缆连接和查线的箱体设备。",
-    scope: { type: "kb", id: "kb-device" },
+    scope: { type: "app", id: "app-device" },
     status: "disabled",
     updatedAt: "2026-11-11T16:15:00+08:00",
     createdAt: "2026-09-26T14:00:00+08:00",
@@ -211,10 +211,10 @@ export const INITIAL_ENTRIES = [
   {
     id: "t-anquocuoshi-piao",
     name: "安全措施票",
-    code: "SAFE-AC-011",
+    attributes: [{ name: "编码", value: "SAFE-AC-011" }],
     aliases: ["安措票"],
     definition: "用于记录和确认现场安全措施执行情况的单据，常与工作票配合使用。",
-    scope: { type: "kb", id: "kb-safety" },
+    scope: { type: "app", id: "app-safety" },
     status: "enabled",
     updatedAt: "2026-11-14T10:06:00+08:00",
     createdAt: "2026-10-11T09:40:00+08:00",
@@ -222,10 +222,10 @@ export const INITIAL_ENTRIES = [
   {
     id: "t-daozha-piao",
     name: "倒闸操作票",
-    code: "SAFE-OP-013",
-    aliases: ["操作票", "倒闸票"],
-    definition: "安全规程知识库中用于记录设备状态转换操作步骤和监护确认结果的专用操作票。",
-    scope: { type: "kb", id: "kb-safety" },
+    attributes: [{ name: "编码", value: "SAFE-OP-013" }],
+    aliases: ["倒闸票"],
+    definition: "用于记录设备状态转换操作步骤和监护确认结果的专用操作票。",
+    scope: { type: "app", id: "app-safety" },
     status: "enabled",
     updatedAt: "2026-11-13T14:48:00+08:00",
     createdAt: "2026-10-11T10:05:00+08:00",

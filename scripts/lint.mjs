@@ -33,11 +33,11 @@ const buttonsWithoutType = [...html.matchAll(/<button\b[^>]*>/g)]
   .filter((tag) => !/\btype="button"/.test(tag));
 check(buttonsWithoutType.length === 0, `存在未声明 type=\"button\" 的按钮：${buttonsWithoutType.slice(0, 3).join(" | ")}`);
 
-const requiredNavigation = ["知识库", "专业 Agent", "黑话管理"];
+const requiredNavigation = ["知识库", "专业 Agent", "词条管理"];
 for (const label of requiredNavigation) {
   check(html.includes(`>${label}<`) || html.includes(`>${label}</span>`), `缺少一级入口：${label}`);
 }
-const requiredKbTabs = ["基本信息", "公开性设置", "文件更新", "黑话配置"];
+const requiredKbTabs = ["基本信息", "公开性设置", "文件更新"];
 for (const label of requiredKbTabs) {
   check(html.includes(`>${label}</button>`), `缺少知识库设置页签：${label}`);
 }
@@ -59,13 +59,15 @@ check(/width:\s*auto/.test(filterRule), "工具栏筛选下拉必须显式 width
 check(/max-width:\s*180px/.test(filterRule), "工具栏筛选下拉缺少 max-width，可能再次把工具栏撑成竖排");
 check(/flex:\s*0 0 auto/.test(filterRule), "工具栏筛选下拉缺少禁止拉伸规则");
 
-check(
-  /return\s+`\$\{CSV_HEADERS\.join\(","\)\}/.test(app),
-  "导入示例必须复用 CSV_HEADERS 生成表头，避免示例内容无法解析",
-);
+check(/function importSampleForScope\(\)[\s\S]*?return entriesToCsv/.test(app), "导入示例必须复用通用 CSV 导出结构");
 check(domain.includes('export const CSV_HEADERS'), "domain.mjs 必须统一维护 CSV 表头");
 check(app.includes("confirmImport") && app.includes("importRowsToEntries"), "导入流程必须经过预览校验和确认写入");
-check(app.includes("canWriteGlobal") && app.includes("canWriteKb"), "身份切换必须同时约束全局与本库写权限");
+check(app.includes("canViewTerms") && app.includes("canWriteGlobal"), "词条查看和管理权限必须生效");
+check(!/kb-panel-(?:terms|blacktalk)|kb-black-|data-kb-tab="(?:terms|blacktalk)"/.test(html + app), "知识库不得保留词条页签或知识库级词条能力");
+check(!/agent-demo|agent-kb-name|demo-query/.test(html + app), "Agent 详情不得展示词条召回演示或关联知识库来表达词条关系");
+check(!/规范名|规范编码|指定知识库|黑话管理|黑话增强/.test(html + app), "界面不得残留旧功能名、专用字段或知识库词条范围");
+check(!/scope:\s*\{\s*type:\s*"kb"/.test(readFileSync(resolve(root, "data.mjs"), "utf8")), "示例词条不得关联知识库");
+check(app.includes("data-open-agent") && html.includes('id="recall-scope"'), "词条范围跳转和管理页召回入口必须保留");
 check(!html.includes('class="sidebar"'), "现网主导航为顶部横向导航，不得恢复全局侧栏");
 check(/src="app\.js\?v=/.test(html), "静态发布入口必须带资源版本号，避免新 HTML 与旧 JS 混用");
 check(html.includes('class="knowledge-grid"') && html.includes('class="agent-grid"'), "知识库和专业 Agent 必须保留现网卡片列表");
